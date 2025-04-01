@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+httpx
+python-dotenv
+sqlalchemy
+databases
+asyncpg
+dotenv
+aiosqlite
+greenlet
+python-jose

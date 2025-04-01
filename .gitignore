@@ -1,0 +1,44 @@
+# python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# SQLite DB
+*.sqlite3
+
+# vscode
+.vscode/
+
+# python virtual environment
+backend/venv/
+venv/
+
+# environment/config files
+.env
+*.env
+.env.*
+
+# node npm
+node_modules/
+dist/
+build/
+*.log
+
+# macOS
+.DS_Store
+
+# Chrome extension 
+pusher.zip
+*.crx
+
+# web (not yet)
+web-dashboard/.next/
+web-dashboard/out/
+web-dashboard/.turbo/
+web-dashboard/.cache/
+web-dashboard/.env.local
+
+# others
+.idea/
+*.swp
+*.swo

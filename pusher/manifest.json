@@ -1,0 +1,38 @@
+{
+  "name": "LeetCode Pusher",
+  "version": "1.0",
+  "manifest_version": 3,
+  "permissions": [
+    "identity",
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "oauth2": {
+    "client_id": "Ov23lidbbczriEkuebBd",
+    "scopes": ["repo"]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "https://github.com/*",
+    "http://localhost:8000/*",
+    "https://leetcode.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://leetcode.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://amaodlllieieimpkkfoehlimfficcnbg.chromiumapp.org/*"
+    ]
+  }
+}

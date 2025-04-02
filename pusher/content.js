@@ -35,7 +35,6 @@ function getExtensionFromLang(lang) {
   return map[lang] || 'txt';
 }
 
-
 // extract code from editor
 function getCode() {
   const codeLines = document.querySelectorAll('.view-line');
@@ -102,45 +101,100 @@ async function getProblemNumberFromSlug(slug) {
   }
 }
 
+function isAcceptedOrSolved() {
+  // Case 1: Solved
+  const solvedXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[4]/div/div[1]/div[1]/div[2]';
+  const solvedElem = document.evaluate(solvedXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  if (solvedElem && solvedElem.textContent.trim() === "Solved") return true;
+
+  // Case 2: Accepted
+  const acceptedXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[11]/div/div/div/div[2]/div/div[1]/div[1]/div[1]/span';
+  const acceptedElem = document.evaluate(acceptedXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  if (acceptedElem && acceptedElem.textContent.trim() === "Accepted") return true;
+
+  return false;
+}
+
+function monitorSubmitButton() {
+  const submitXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div[3]/div[2]/div[2]/div[2]/div[2]/div/button/span';
+  const submitBtn = document.evaluate(submitXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+
+  if (!submitBtn) return;
+
+  const realBtn = submitBtn.closest("button");
+  if (!realBtn || realBtn.dataset.listenerAttached) return;
+
+  realBtn.dataset.listenerAttached = "true";
+  realBtn.addEventListener("click", () => {
+    const pushBtn = document.getElementById("leet-github-push");
+    if (pushBtn) pushBtn.innerText = "🔁 Push";
+
+    setTimeout(() => {
+      if (isAcceptedOrSolved()) {
+        const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
+        if (confirmed) {
+          pushCodeToGitHub();
+        }
+      }
+    }, 3000);
+  });
+}
+
 // add push button
 function addPushButton() {
   if (document.getElementById("leet-github-push")) return;
 
-  const btn = document.createElement("button");
-  btn.id = "leet-github-push";
-  btn.innerText = "Push to GitHub";
-  btn.style = `
-    position: fixed;
-    bottom: 40px;
-    right: 30px;
-    z-index: 9999;
-    padding: 10px 16px;
-    background: #24292e;
+  const buttonGroupXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div[1]/div[2]';
+  const buttonGroup = document.evaluate(buttonGroupXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+
+  if (!buttonGroup) {
+    console.warn("[PushButton] Button group container not found.");
+    return;
+  }
+
+  const pushBtn = document.createElement("button");
+  pushBtn.id = "leet-github-push";
+  pushBtn.innerText = "🔄 Push";
+  pushBtn.style = `
+    margin-right: 8px;
+    background-color: #24292e;
     color: white;
-    border: none;
+    padding: 6px 12px;
     border-radius: 5px;
+    border: none;
     font-weight: bold;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   `;
 
-  btn.onclick = pushCodeToGitHub;
-  document.body.appendChild(btn);
+  pushBtn.onclick = () => pushCodeToGitHub(pushBtn);
+  buttonGroup.insertBefore(pushBtn, buttonGroup.firstChild);
 }
 
-async function pushCodeToGitHub() {
+async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-push")) {
+  if (!isAcceptedOrSolved()) {
+    if (pushBtn) {
+      pushBtn.innerText = "❌ Not Accepted";
+      pushBtn.disabled = false;
+    }
+    return;
+  }
+
+  if (pushBtn) {
+    pushBtn.disabled = true;
+    pushBtn.innerText = "⏳ Loading";
+  }
+
   const meta = getProblemMeta();
   const slug = meta?.slug;
   const title = meta?.title;
-
   if (!slug || !title) {
-    alert("Could not detect problem slug or title.");
+    if (pushBtn) pushBtn.innerText = "❌ Error";
     return;
   }
 
   const problemNumber = await getProblemNumberFromSlug(slug);
   if (!problemNumber) {
-    alert("Could not fetch problem number.");
+    if (pushBtn) pushBtn.innerText = "❌ Error";
     return;
   }
 
@@ -152,6 +206,7 @@ async function pushCodeToGitHub() {
   chrome.storage.local.get("jwt", ({ jwt }) => {
     if (!jwt) {
       alert("Please log in via popup first.");
+      if (pushBtn) pushBtn.innerText = "❌ No Login";
       return;
     }
 
@@ -166,29 +221,33 @@ async function pushCodeToGitHub() {
       .then(res => res.json())
       .then(data => {
         if (data.status === 200 || data.status === 201) {
-          alert(`Pushed as ${filename}`);
+          if (pushBtn) pushBtn.innerText = "✅ Push";
         } else {
-          alert("Push failed: " + JSON.stringify(data));
+          if (pushBtn) pushBtn.innerText = "❌ Failed";
         }
+        if (pushBtn) pushBtn.disabled = false;
       })
       .catch(err => {
         console.error("Push error:", err);
-        alert("Push error occurred.");
+        if (pushBtn) {
+          pushBtn.innerText = "❌ Error";
+          pushBtn.disabled = false;
+        }
       });
   });
 }
 
-// detect DOM change & insert push button
 function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');
   if (editor) {
     addPushButton();
+    monitorSubmitButton();
   } else {
-    // retry every 100ms for 5 seconds
     let retry = 0;
     const interval = setInterval(() => {
       if (document.querySelector('.monaco-editor')) {
         addPushButton();
+        monitorSubmitButton();
         clearInterval(interval);
       } else if (retry++ > 50) {
         clearInterval(interval);
@@ -202,5 +261,5 @@ const observer = new MutationObserver(() => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-// try initial insertion for safety
+// first call
 setTimeout(waitForEditorAndInsertButton, 1000);

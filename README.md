@@ -32,7 +32,7 @@ Automatically push your solved LeetCode problems to GitHub and visualize your co
 ### 🌐 Web Dashboard
 - ✅ List of solved problems.
 - 📈 Weekly/monthly problem-solving charts.
-- 🏆 Ranking system (see who’s solving the most problems).
+- 🏆 Ranking system (see who's solving the most problems).
 - 🎯 Weekly challenge & leaderboard.
 - 🔗 Click on a problem to jump to its corresponding GitHub file.
 
@@ -98,7 +98,12 @@ Deployment |	Docker (future), Render/Vercel
 
 ## 📄 License
 
-MIT
+MIT License with additional restrictions:
+
+- Commercial use is prohibited
+- Modification, adaptation, or creation of derivative works is prohibited
+- Redistribution in any form is prohibited
+- The software may only be used for personal, non-commercial purposes
 
 ## 🙌 Contributing
 

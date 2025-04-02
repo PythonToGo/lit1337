@@ -1,12 +1,14 @@
 import os
+from init_db import init_db
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from auth import create_access_token, verify_token, get_current_user
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, PushLog
-from database import SessionLocal
+from database import SessionLocal, get_db
 from github_oauth import exchange_code_for_token, get_user_info
 from github_push import push_code_to_github
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +24,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
+    
+@app.get("/me")
+async def read_me(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return {"users": [u.username for u in users]}
+
+
 @app.get("/login/github/callback")
 async def github_callback(request: Request):
     code = request.query_params.get("code")
@@ -117,6 +131,6 @@ async def get_stats(user=Depends(get_current_user)):
         ]
     }
 
-@app.get("/me")
-async def get_me(user=Depends(get_current_user)):
-    return user
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}

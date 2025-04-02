@@ -112,33 +112,37 @@ function isAcceptedOrSolved() {
   const acceptedElem = document.evaluate(acceptedXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
   if (acceptedElem && acceptedElem.textContent.trim() === "Accepted") return true;
 
+  console.log("[PushButton] Not accepted or solved");
   return false;
 }
 
 function monitorSubmitButton() {
-  const submitXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div[3]/div[2]/div[2]/div[2]/div[2]/div/button/span';
-  const submitBtn = document.evaluate(submitXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  const buttons = document.querySelectorAll("button");
+  for (const btn of buttons) {
+    if (
+      btn.innerText.trim().toLowerCase() === "submit" &&
+      !btn.dataset.listenerAttached
+    ) {
+      btn.dataset.listenerAttached = "true";
+      btn.addEventListener("click", () => {
+        const pushBtn = document.getElementById("leet-github-push");
+        if (pushBtn) pushBtn.innerText = "🔁 Push";
 
-  if (!submitBtn) return;
-
-  const realBtn = submitBtn.closest("button");
-  if (!realBtn || realBtn.dataset.listenerAttached) return;
-
-  realBtn.dataset.listenerAttached = "true";
-  realBtn.addEventListener("click", () => {
-    const pushBtn = document.getElementById("leet-github-push");
-    if (pushBtn) pushBtn.innerText = "🔁 Push";
-
-    setTimeout(() => {
-      if (isAcceptedOrSolved()) {
-        const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
-        if (confirmed) {
-          pushCodeToGitHub();
-        }
-      }
-    }, 3000);
-  });
+        setTimeout(() => {
+          if (isAcceptedOrSolved()) {
+            const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
+            if (confirmed) {
+              pushCodeToGitHub();
+            }
+          }
+        }, 5000);
+      });
+      break;
+    }
+  }
 }
+
+
 
 // add push button
 function addPushButton() {
@@ -169,6 +173,26 @@ function addPushButton() {
   pushBtn.onclick = () => pushCodeToGitHub(pushBtn);
   buttonGroup.insertBefore(pushBtn, buttonGroup.firstChild);
 }
+
+let cachedJwt = null;
+
+function getJwtToken() {
+  return new Promise((resolve, reject) => {
+    if (cachedJwt) {
+      return resolve(cachedJwt);
+    }
+
+    chrome.storage.local.get("jwt", ({ jwt }) => {
+      if (jwt) {
+        cachedJwt = jwt;
+        resolve(jwt);
+      } else {
+        reject("JWT not found");
+      }
+    });
+  });
+}
+
 
 async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-push")) {
   if (!isAcceptedOrSolved()) {
@@ -203,39 +227,53 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
   const code = getCode();
   const filename = `${problemNumber}_${title}.${ext}`;
 
-  chrome.storage.local.get("jwt", ({ jwt }) => {
-    if (!jwt) {
-      alert("Please log in via popup first.");
-      if (pushBtn) pushBtn.innerText = "❌ No Login";
-      return;
-    }
+  let jwt;
+  try {
+    jwt = await getJwtToken(); // ✅ 캐싱 + fallback 처리된 함수
+  } catch (e) {
+    console.error("JWT Load Error:", e);
+    if (pushBtn) pushBtn.innerText = "❌ Error";
+    return;
+  }
 
-    fetch("http://localhost:8000/push-code", {
+  if (!jwt) {
+    alert("Please log in via popup first.");
+    if (pushBtn) pushBtn.innerText = "❌ No Login";
+    return;
+  }
+
+  try {
+    const res = await fetch("http://localhost:8000/push-code", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${jwt}`
       },
       body: JSON.stringify({ filename, code })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 200 || data.status === 201) {
-          if (pushBtn) pushBtn.innerText = "✅ Push";
-        } else {
-          if (pushBtn) pushBtn.innerText = "❌ Failed";
-        }
-        if (pushBtn) pushBtn.disabled = false;
-      })
-      .catch(err => {
-        console.error("Push error:", err);
-        if (pushBtn) {
-          pushBtn.innerText = "❌ Error";
-          pushBtn.disabled = false;
-        }
-      });
-  });
+    });
+
+    const data = await res.json().catch(() => ({})); // JSON decode 실패 방지
+
+    if (res.ok) {
+      if (data.message === "Already pushed!") {
+        pushBtn.innerText = "⚠️ Already";
+      } else {
+        pushBtn.innerText = "✅ Push";
+      }
+    } else {
+      console.error("Server error:", data);
+      pushBtn.innerText = "❌ Failed";
+    }
+  } catch (err) {
+    console.error("Push error:", err);
+    pushBtn.innerText = "❌ Error";
+  }
+
+  if (pushBtn) pushBtn.disabled = false;
 }
+
+  
+
 
 function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');

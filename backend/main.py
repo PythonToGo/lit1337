@@ -1,8 +1,9 @@
 import os
+import models
 from init_db import init_db
 from dotenv import load_dotenv
 from urllib.parse import urlencode
-from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from fastapi import FastAPI, Header, HTTPException, Depends, Request, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from auth import create_access_token, verify_token, get_current_user
 from sqlalchemy import select
@@ -20,6 +21,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    # allow_origins=["https://leetcode.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,6 +75,8 @@ async def get_current_user(authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Invalid Token")
     return payload
 
+from fastapi import status  # 상단에 추가
+
 @app.post("/push-code")
 async def push_code(data: dict, user=Depends(get_current_user)):
     filename = data.get("filename")
@@ -81,9 +85,14 @@ async def push_code(data: dict, user=Depends(get_current_user)):
 
     github_id = user.get("github_id")
 
+    # 유저 조회
     async with SessionLocal() as session:
         result = await session.execute(select(User).where(User.github_id == github_id))
-        user_obj = result.scalar_one()
+        user_obj = result.scalar_one_or_none()
+
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
         access_token = user_obj.access_token
 
     user_info = await get_user_info(access_token)
@@ -91,21 +100,32 @@ async def push_code(data: dict, user=Depends(get_current_user)):
 
     repo = f"{github_username}/leetcode_repo"
 
-    # push code to github
-    status, result = await push_code_to_github(access_token, repo, filename, code)
+    # GitHub에 코드 푸시
+    push_status, push_result = await push_code_to_github(access_token, repo, filename, code)
 
-    # Save solution
+    # 이미 푼 문제인지 확인 (선택 사항)
     async with SessionLocal() as session:
-        result = await session.execute(select(User).where(User.github_id == github_id))
-        user_obj = result.scalar_one()
+        result = await session.execute(
+            select(PushLog).where(PushLog.user_id == user_obj.id, PushLog.filename == filename)
+        )
+        existing_log = result.scalar_one_or_none()
+
+        if existing_log:
+            return {
+                "message": "Already pushed!",
+                "status": status.HTTP_200_OK
+            }
+
+        # 새로운 푸시 기록 저장
         log = PushLog(user_id=user_obj.id, filename=filename, language=language)
         session.add(log)
         await session.commit()
 
     return {
         "message": "uploaded to github!",
-        "status": status
+        "status": status.HTTP_201_CREATED
     }
+
 
 @app.get("/stats")
 async def get_stats(user=Depends(get_current_user)):

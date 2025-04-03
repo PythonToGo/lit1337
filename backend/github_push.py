@@ -40,29 +40,40 @@ async def get_existing_file_sha(access_token: str, repo: str, path: str):
             return data.get("sha")
         return None
 
-async def push_code_to_github(access_token: str, repo: str, filename: str, content: str):
-    repo_name = repo.split("/")[-1]
-    repo_owner = repo.split("/")[0]
+async def get_existing_file_content(access_token: str, repo: str, path: str):
+    url = f"{GITHUB_API_URL}/repos/{repo}/contents/{path}"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github+json"
+    }
+    async with httpx.AsyncClient() as client:
+        res = await client.get(url, headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            return base64.b64decode(data.get("content")).decode(), data.get("sha")
+        return None, None
 
+
+async def push_code_to_github(access_token: str, repo: str, filename: str, content: str):
     if not await repo_exists(access_token, repo):
-        created = await create_repo(access_token, repo_name)
+        created = await create_repo(access_token, repo.split("/")[-1])
         if not created:
             return 400, {"error": f"Repo {repo} creation failed"}
 
-    path = filename
-    commit_message = f"Add LeetCode solution: {filename}"
-    encoded_content = base64.b64encode(content.encode()).decode()
-    sha = await get_existing_file_sha(access_token, repo, path)
+    existing_content, sha = await get_existing_file_content(access_token, repo, filename)
+
+    # if no change, return 200
+    if existing_content and existing_content.strip() == content.strip():
+        return 200, {"message": "No change"}
 
     payload = {
-        "message": commit_message,
-        "content": encoded_content
+        "message": f"Add LeetCode solution: {filename}",
+        "content": base64.b64encode(content.encode()).decode(),
     }
-
     if sha:
-        payload["sha"] = sha  # Add sha to allow overwrite
+        payload["sha"] = sha
 
-    url = f"{GITHUB_API_URL}/repos/{repo}/contents/{path}"
+    url = f"{GITHUB_API_URL}/repos/{repo}/contents/{filename}"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Accept": "application/vnd.github+json"

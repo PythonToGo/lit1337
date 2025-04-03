@@ -9,3 +9,4 @@ dotenv
 aiosqlite
 greenlet
 python-jose
+alembic

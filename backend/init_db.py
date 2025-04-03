@@ -1,5 +1,6 @@
 from database import engine
 from models import Base
+import models
 import asyncio
 
 async def init_db():

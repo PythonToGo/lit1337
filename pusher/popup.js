@@ -74,3 +74,10 @@ function updateUI(username, last_push) {
     lastPushEl.innerText = `Recent push: ${date.toLocaleString()}`;
   }
 }
+
+chrome.runtime.onStartup?.addListener(() => {
+  chrome.storage.local.clear();
+});
+chrome.runtime.onInstalled?.addListener(() => {
+  chrome.storage.local.clear();
+});

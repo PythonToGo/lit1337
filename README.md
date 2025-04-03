@@ -47,7 +47,7 @@ lit1337/
 ├── web-dashboard/     # Frontend dashboard (React or other)
 ├── .gitignore
 └── README.md
-
+```
 
 ## ⚙️ Getting Started
 

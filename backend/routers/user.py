@@ -54,3 +54,27 @@ async def get_streak(user=Depends(get_current_user), db: AsyncSession = Depends(
         day -= timedelta(days=1)
 
     return {"streak": streak, "frozen_used": min(frozen, 4)}
+
+
+@user_router.get("/user/{username}")
+async def get_user_detail(username: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    logs = await db.execute(select(PushLog).where(PushLog.user_id == user.id))
+    log_list = logs.scalars().all()
+
+    return {
+        "username": user.username,
+        "total_solved": len(log_list),
+        "by_language": {
+            lang: sum(1 for l in log_list if l.language == lang)
+            for lang in set(l.language for l in log_list)
+        },
+        "recent": [
+            {"filename": l.filename, "timestamp": l.timestamp.isoformat()}
+            for l in sorted(log_list, key=lambda x: x.timestamp, reverse=True)[:5]
+        ]
+    }

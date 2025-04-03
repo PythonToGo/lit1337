@@ -11,8 +11,8 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["*"],
-    allow_origins=["https://leetcode.com", "http://localhost:3000"],
+    allow_origins=["*"],
+    # allow_origins=["https://leetcode.com", "http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +31,8 @@ app.include_router(stats.stats_router)
 app.include_router(auth.auth_router)
 app.include_router(push.push_router)
 app.include_router(solution.solution_router)
+# app.include_router(user.user_detail_router)
+
 
 @app.on_event("startup")
 async def on_startup():

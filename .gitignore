@@ -26,17 +26,20 @@ build/
 
 # macOS
 .DS_Store
+.DS_STORE
 
 # Chrome extension 
 pusher.zip
 *.crx
 
-# web (not yet)
-web-dashboard/.next/
-web-dashboard/out/
-web-dashboard/.turbo/
-web-dashboard/.cache/
-web-dashboard/.env.local
+# dashboard
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vite/
+
 
 # others
 .idea/

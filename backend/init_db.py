@@ -1,3 +1,6 @@
+from database import engine
+from models import Base
+import asyncio
 import traceback
 import sys
 

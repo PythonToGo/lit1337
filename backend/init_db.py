@@ -1,8 +1,5 @@
-from database import engine
-from models import Base
-import asyncio
-import sys
 import traceback
+import sys
 
 async def init_db():
     print("🟡 [init_db] Trying to initialize DB...", flush=True)
@@ -13,8 +10,10 @@ async def init_db():
             await conn.run_sync(Base.metadata.create_all)
             print("🟢 [init_db] DB tables created successfully.", flush=True)
     except Exception as e:
-        print("🔴 [init_db] DB Initialization failed:", e, flush=True)
-        traceback.print_exc(file=sys.stdout) 
+        print("🔴 [init_db] DB Initialization failed:", flush=True)
+        print(f"🔴 [init_db] Error: {e}", flush=True)
+        traceback.print_exc(file=sys.stdout)
+
 
 # local test
 if __name__ == "__main__":

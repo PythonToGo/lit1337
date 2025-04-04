@@ -1,12 +1,12 @@
 import os
 import httpx
 from fastapi import Request
-from dotenv import load_dotenv
-
-load_dotenv()
 
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
+
+if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+    raise ValueError("❌ GitHub OAuth credentials not found")
 
 async def exchange_code_for_token(code: str):
     async with httpx.AsyncClient() as client:

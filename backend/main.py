@@ -28,11 +28,9 @@ app.include_router(solution.solution_router)
 
 @app.on_event("startup")
 async def startup_event():
-    try:
-        await init_db()
-        print("DB init success")
-    except Exception as e:
-        print("DB init failed:", e)
+    print("🟡 [startup] Running startup event...")
+    await init_db()
+
     
 @app.get("/ping")
 async def ping():

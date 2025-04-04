@@ -1,22 +1,22 @@
 from database import engine
 from models import Base, User, PushLog, Problem, Solution
 import asyncio
-import traceback
-import sys
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def init_db():
-    print("🟡 [init_db] Trying to initialize DB...", flush=True)
+    logger.info("🟡 [init_db] Trying to initialize DB...")
 
     try:
         async with engine.begin() as conn:
-            print("🟡 [init_db] Connected to DB, creating tables...", flush=True)
+            logger.info("🟡 [init_db] Connected to DB, creating tables...")
             await conn.run_sync(Base.metadata.create_all)
-            print("🟢 [init_db] DB tables created successfully.", flush=True)
+            logger.info("🟢 [init_db] DB tables created successfully.")
     except Exception as e:
-        print("🔴 [init_db] DB Initialization failed:", flush=True)
-        print("🔍 [init_db] Tables in metadata:", Base.metadata.tables.keys(), flush=True)
-        print(f"🔴 [init_db] Error: {e}", flush=True)
-        traceback.print_exc(file=sys.stdout)
+        logger.exception("🔴 [init_db] DB Initialization failed")  # ← 전체 에러 트레이스 찍힘
+        logger.info("🔍 [init_db] Tables in metadata: %s", Base.metadata.tables.keys())
 
 
 # local test

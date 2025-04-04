@@ -11,7 +11,7 @@ const lastPushEl = document.getElementById("last-push");
 chrome.storage.local.get(["jwt", "username", "last_push"], ({ jwt, username, last_push }) => {
   if (!jwt) return;
 
-  fetch("http://localhost:8000/me", {
+  fetch("https://lit1337.up.railway.app/me", {
     headers: { Authorization: `Bearer ${jwt}` }
   })
     .then((res) => {

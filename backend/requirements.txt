@@ -3,6 +3,7 @@ uvicorn
 httpx
 python-dotenv
 sqlalchemy
+sqlalchemy[asyncio]
 databases
 asyncpg
 dotenv

@@ -131,7 +131,7 @@ async function getStatsFromAPI() {
   }
 
   try {
-    const res = await fetch("http://localhost:8000/stats", {
+    const res = await fetch("https://lit1337.up.railway.app/stats", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${jwt}`
@@ -277,7 +277,7 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
   pushBtn.disabled = true;
 
   try {
-    const res = await fetch("http://localhost:8000/push-code", {
+    const res = await fetch("https://lit1337.up.railway.app/push-code", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

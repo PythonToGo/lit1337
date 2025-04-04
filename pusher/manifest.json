@@ -21,6 +21,7 @@
   "host_permissions": [
     "https://github.com/*",
     "http://localhost:8000/*",
+    "https://lit1337.up.railway.app/*",
     "https://leetcode.com/*"
   ],
   "content_scripts": [

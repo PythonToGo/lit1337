@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const code = new URL(redirectUri).searchParams.get("code");
 
     try {
-      const response = await fetch(`http://localhost:8000/login/github/callback?code=${code}`);
+      const response = await fetch(`https://lit1337.up.railway.app/login/github/callback?code=${code}`);
       const data = await response.json();
 
       if (data?.token) {

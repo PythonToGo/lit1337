@@ -10,7 +10,7 @@ load_dotenv()
 
 config = context.config
 url = os.getenv("DATABASE_URL")
-if url.startswith("postgresql+asyncpg"):
+if url and url.startswith("postgresql+asyncpg"):
     url = url.replace("postgresql+asyncpg", "postgresql")
 
 config.set_main_option("sqlalchemy.url", url)

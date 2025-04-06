@@ -1,3 +1,5 @@
+// importScripts("config.js");
+
 let isPushing = false;
 let cachedJwt = null;
 
@@ -131,7 +133,7 @@ async function getStatsFromAPI() {
   }
 
   try {
-    const res = await fetch("https://lit1337.up.railway.app/stats", {
+    const res = await fetch(`${API_BASE_URL}/stats`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${jwt}`
@@ -219,39 +221,21 @@ function addPushButton() {
   buttonGroup.insertBefore(pushBtn, buttonGroup.firstChild);
 }
 
-async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-push")) {
-  const meta = getProblemMeta();
-  const slug = meta?.slug;
-  const title = meta?.title;
+async function pushCodeToGitHub(pushBtn) {
+  // 이미 Accepted 상태인지 먼저 확인
+  if (!isAcceptedOnly()) {
+    pushBtn.innerText = "❌ Not Accepted";
+    return;
+  }
 
-  if (!slug || !title) {
+  const meta = getProblemMeta();
+  if (!meta?.slug || !meta?.title) {
     pushBtn.innerText = "❌ Error";
     return;
   }
 
-  // submit 강제실행
-  const submitButton = Array.from(document.querySelectorAll("button"))
-    .find(btn => btn.innerText.trim().toLowerCase() === "submit");
-  if (submitButton) submitButton.click();
-
-  // 5~15초 내 accepted 검사 반복
-  let accepted = false;
-  const interval = setInterval(() => {
-    if (isAcceptedOnly()) {
-      accepted = true;
-      clearInterval(interval);
-    }
-  }, 3000);
-
-  await new Promise(resolve => setTimeout(() => {
-    clearInterval(interval);
-    resolve();
-  }, 15000));
-
-  if (!accepted) {
-    pushBtn.innerText = "❌ Not Accepted";
-    return;
-  }
+  const slug = meta.slug;
+  const title = meta.title;
 
   const lang = getLanguageFromEditor();
   const ext = getExtensionFromLang(lang || 'txt');
@@ -277,7 +261,7 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
   pushBtn.disabled = true;
 
   try {
-    const res = await fetch("https://lit1337.up.railway.app/push-code", {
+    const res = await fetch(`${API_BASE_URL}/push-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -289,6 +273,12 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
     const data = await res.json();
 
     if (res.ok) {
+      const pushedAt = data.pushed_at || new Date().toISOString();
+
+      chrome.storage.local.set({ last_push: pushedAt }, () => {
+        console.log(`[Push] Last push: ${pushedAt}`);
+      });
+
       if (data.message === "Already pushed!") {
         pushBtn.innerText = "⚠️ Already";
       } else if (data.message === "No change") {

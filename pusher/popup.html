@@ -1,32 +1,156 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>LeetCode Pusher</title>
   <style>
+
     body {
-      font-family: Arial, sans-serif;
-      padding: 16px;
-      min-width: 250px;
+      background: #84cdee;
+      color: #000;
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 13px;
+      width: 350px;
+      max-height: 380px;
     }
-    #logout-btn {
-      margin-top: 10px;
-      background: #d33;
-      color: white;
+
+    .card {
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(8px);
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      color: #000;
+      font-size: 1.25rem;
+      font-weight: bold;
+      margin: 0;
+    }
+
+    .badge {
+      background: transparent;
+      border: 1px solid #004C8D;
+      color: #004C8D;
+      padding: 4px 8px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+    }
+
+    .info {
+      margin-bottom: 16px;
+    }
+
+    .repo {
+      color: #333;
+      font-size: 0.875rem;
+      margin: 4px 0;
+    }
+
+    .last-push {
+      color: #555;
+      font-size: 0.75rem;
+      margin: 4px 0;
+    }
+
+    .last-login {
+      color: #555;
+      font-size: 0.75rem;
+      margin: 4px 0;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 8px 16px;
       border: none;
-      padding: 8px;
-      border-radius: 4px;
+      border-radius: 8px;
+      font-weight: 500;
       cursor: pointer;
+      transition: background-color 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: #84cdee;
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: #70b3e0;
+    }
+
+    .btn-error {
+      background: #ff6b6b;
+      color: #fff;
+    }
+
+    .btn-error:hover {
+      background: #ff4d4d;
+    }
+
+    .btn-secondary {
+      background: #50b8e7;
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: #50b8e7;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      font-size: 1rem;
+      color: #000;
+    }
+
+    .loading.show {
+      display: block;
     }
   </style>
 </head>
 <body>
-  <h3>LeetCode Pusher</h3>
-  <button id="login-btn">GitHub Login</button>
-  <p id="status"></p>
-  <p id="repo"></p>
-  <p id="last-push"></p>
-  <button id="logout-btn" style="display:none;">Logout</button>
+  <div class="card">
+    <div class="header">
+      <h1 class="title">LeetCode Pusher</h1>
+      <div class="badge" id="status">🔒 Not logged in</div>
+    </div>
+    
+    <div class="info">
+      <p id="repo" class="repo"></p>
+      <p id="last-push" class="last-push"></p>
+      <p id="last-login" class="last-login"></p>
+    </div>
 
+    <div>
+      <button id="login-btn" class="btn btn-primary">
+        🔐 GitHub Login
+      </button>
+      <button id="logout-btn" class="btn btn-error" style="width: 45%;">
+        🚪 Logout
+      </button>
+      <button id="github-btn" class="btn btn-secondary" style="width: 45%;">
+        Go to GitHub
+      </button>
+    </div>
+
+    <div class="loading" id="loading">Loading...</div>
+  </div>
+
+  <script src="config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

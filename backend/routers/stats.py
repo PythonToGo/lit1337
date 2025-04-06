@@ -15,7 +15,7 @@ async def get_stats(user=Depends(get_current_user), db: AsyncSession = Depends(g
     result = await db.execute(select(User).where(User.github_id == github_id))
     user_obj = result.scalar_one()
     logs = await db.execute(select(PushLog).where(PushLog.user_id == user_obj.id))
-    log_list = logs.scalars().all()
+    log_list = [l for l in logs.scalars().all() if l.timestamp is not None]
 
     return {
         "total_solved": len(log_list),

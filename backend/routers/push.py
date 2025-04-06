@@ -37,7 +37,9 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
 
         # GitHub에 코드 푸시
         status, result = await push_code_to_github(access_token, repo, filename, code)
-        if status != 200:
+        
+        # 201(Created)와 200(OK) 모두 성공으로 처리
+        if status not in [200, 201]:
             raise HTTPException(status_code=status, detail=result.get("message", "Failed to push code"))
 
         if result.get("message") == "No change":
@@ -73,4 +75,10 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
         print(f"Error in push_code: {str(e)}")
         # 트랜잭션 롤백
         await db.rollback()
+        # 201 상태 코드는 성공으로 처리
+        if "201" in str(e):
+            return {
+                "message": "uploaded to github!",
+                "pushed_at": datetime.now().isoformat()
+            }
         raise HTTPException(status_code=500, detail=str(e))

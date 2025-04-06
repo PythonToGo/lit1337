@@ -9,10 +9,22 @@ from datetime import datetime, timedelta
 user_router = APIRouter()
 
 @user_router.get("/me")
-async def read_me(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User))
-    users = result.scalars().all()
-    return {"users": [u.username for u in users]}
+@user_router.get("/me")
+async def read_me(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    github_id = user.get("github_id")
+
+    result = await db.execute(select(User).where(User.github_id == github_id))
+    user_obj = result.scalar_one_or_none()
+
+    if not user_obj:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "username": user_obj.username,
+        "last_login": user_obj.last_login.isoformat() if user_obj.last_login else None,
+        "last_push": user_obj.last_push.isoformat() if user_obj.last_push else None
+    }
+
 
 @user_router.get("/search")
 async def search_user(username: str, db: AsyncSession = Depends(get_db)):

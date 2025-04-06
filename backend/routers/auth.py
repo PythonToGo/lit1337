@@ -23,13 +23,20 @@ async def github_callback(request: Request):
         result = await session.execute(select(User).where(User.github_id == github_id))
         user = result.scalar_one_or_none()
 
+        now = datetime.now()
+
         if not user:
-            user = User(github_id=github_id, username=username, access_token=access_token)
+            user = User(
+                github_id=github_id,
+                username=username,
+                access_token=access_token,
+                last_login=now,
+                last_push=None
+            )
             session.add(user)
         else:
             user.access_token = access_token
-            user.last_push = datetime.now()
-            user.last_login = datetime.now()
+            user.last_login = now
         await session.commit()
 
     jwt_token = create_access_token({"github_id": github_id})
@@ -39,8 +46,10 @@ async def github_callback(request: Request):
         "message": "GitHub login successful",
         "token": jwt_token,
         "username": username,
-        "last_push": user.last_push
+        "last_push": user.last_push.isoformat() if user.last_push else None,
+        "last_login": user.last_login.isoformat() if user.last_login else None
     })
+    
 async def get_current_user(authorization: str = Header(...)):
     token = authorization.replace("Bearer ", "")
     payload = verify_token(token)

@@ -38,7 +38,7 @@ async def github_callback(request: Request):
     return JSONResponse({
         "message": "GitHub login successful",
         "token": jwt_token,
-        "username": username
+        "username": username,
         "last_push": user.last_push
     })
 async def get_current_user(authorization: str = Header(...)):

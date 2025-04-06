@@ -19,9 +19,11 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    github_id = Column(Integer, unique=True)
-    username = Column(String)
+    github_id = Column(Integer, unique=True, index=True)
+    username = Column(String, unique=True, index=True)
     access_token = Column(String)
+    last_push = Column(DateTime(timezone=True))
+    last_login = Column(DateTime(timezone=True))
     solutions = relationship("Solution", back_populates="user")
     push_logs = relationship("PushLog", back_populates="user")
 

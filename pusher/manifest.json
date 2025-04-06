@@ -22,13 +22,20 @@
     "https://github.com/*",
     "http://localhost:8000/*",
     "https://lit1337.up.railway.app/*",
+    "https://lit1337-dev.up.railway.app/*",
     "https://leetcode.com/*"
   ],
   "content_scripts": [
     {
       "matches": ["https://leetcode.com/*"],
-      "js": ["content.js"],
+      "js": ["config.js", "content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["config.js"],
+      "matches": ["<all_urls>"]
     }
   ],
   "externally_connectable": {

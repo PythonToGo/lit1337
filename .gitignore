@@ -5,6 +5,7 @@ __pycache__/
 
 # SQLite DB
 *.sqlite3
+*.sql
 
 # vscode
 .vscode/

@@ -4,70 +4,81 @@ from sqlalchemy import select
 from models import User, PushLog, Problem, Solution
 from database import get_db
 from auth import get_current_user
-from github_push import push_code_to_github, get_existing_file_sha
+from github_push import push_code_to_github
 from github_oauth import get_user_info
 from utils.leetcode import get_problem_difficulty
 import base64
 import httpx
+from datetime import datetime
 
 push_router = APIRouter()
 
 @push_router.post("/push-code")
 async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    filename = data.get("filename")
-    code = data.get("code")
-    language = filename.split(".")[-1]
+    try:
+        # 입력 데이터 검증
+        if not data.get("filename") or not data.get("code"):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        filename = data.get("filename")
+        code = data.get("code")
+        language = filename.split(".")[-1]
 
-    github_id = user.get("github_id")
-    result = await db.execute(select(User).where(User.github_id == github_id))
-    user_obj = result.scalar_one_or_none()
-    if not user_obj:
-        raise HTTPException(status_code=404, detail="User not found")
+        github_id = user.get("github_id")
+        result = await db.execute(select(User).where(User.github_id == github_id))
+        user_obj = result.scalar_one_or_none()
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    access_token = user_obj.access_token
-    user_info = await get_user_info(access_token)
-    github_username = user_info.get("login")
-    repo = f"{github_username}/leetcode_repo"
-    
-    # check if existing file is same code
-    sha = await get_existing_file_sha(access_token, repo, filename)
-    if sha:
-        url = f"https://github.com/repos/{repo}/contnets/{filename}"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/vnd.github.v3+json",
-        }
-        async with httpx.AsyncClient() as client:
-            res = await client.get(url, headers=headers)
-            if res.status_code == 200:
-                existing_data = res.json()
-                existing_content = base64.b64decode(existing_data.get("content", "").decode())
-                if existing_content.strip() == code.strip():
-                    return {"message": "No change."}
-    push_status, push_result = await push_code_to_github(access_token, repo, filename, code)
+        access_token = user_obj.access_token
+        user_info = await get_user_info(access_token)
+        github_username = user_info.get("login")
+        repo = f"{github_username}/leetcode_repo"
 
-    # extract slug
-    slug = filename.split("_", 1)[-1].rsplit(".", 1)[0].replace("_", "-").lower()
-    difficulty_info = await get_problem_difficulty(slug)
-    difficulty = difficulty_info.get("difficulty") if difficulty_info else None
-    number = difficulty_info.get("number") if difficulty_info else None
-    point_map = {"Easy": 3, "Medium": 6, "Hard": 12}
-    point = point_map.get(difficulty, 0)
+        # GitHub에 코드 푸시
+        status, result = await push_code_to_github(access_token, repo, filename, code)
+        
+        # 201(Created)와 200(OK) 모두 성공으로 처리
+        if status not in [200, 201]:
+            raise HTTPException(status_code=status, detail=result.get("message", "Failed to push code"))
 
-    # insert into Problem table if not exists
-    existing_problem = await db.execute(select(Problem).where(Problem.slug == slug))
-    if not existing_problem.scalar_one_or_none():
-        db.add(Problem(slug=slug, difficulty=difficulty, point=point))
-        await db.commit()
+        if result.get("message") == "No change":
+            return {"message": "No change"}
 
-    # insert into PushLog only if not already exists
-    result = await db.execute(select(PushLog).where(PushLog.user_id == user_obj.id, PushLog.filename == filename))
-    if not result.scalar_one_or_none():
+        # Extract slug and calculate points
+        slug = filename.split("_", 1)[-1].rsplit(".", 1)[0].replace("_", "-").lower()
+        
+        # Get difficulty info
+        difficulty_info = await get_problem_difficulty(slug)
+        difficulty = difficulty_info.get("difficulty") if difficulty_info else None
+        point_map = {"Easy": 3, "Medium": 6, "Hard": 12}
+        point = point_map.get(difficulty, 0)
+
+        # Insert into Problem table if not exists
+        existing_problem = await db.execute(select(Problem).where(Problem.slug == slug))
+        if not existing_problem.scalar_one_or_none():
+            db.add(Problem(slug=slug, difficulty=difficulty, point=point))
+            await db.commit()
+
+        # Insert into PushLog
         db.add(PushLog(user_id=user_obj.id, filename=filename, language=language))
         await db.commit()
 
-    return {
-        "message": "uploaded to github!",
-        "difficulty": difficulty,
-        "point": point
-    }
+        return {
+            "message": "uploaded to github!",
+            "difficulty": difficulty,
+            "point": point,
+            "pushed_at": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        print(f"Error in push_code: {str(e)}")
+        # 트랜잭션 롤백
+        await db.rollback()
+        # 201 상태 코드는 성공으로 처리
+        if "201" in str(e):
+            return {
+                "message": "uploaded to github!",
+                "pushed_at": datetime.now().isoformat()
+            }
+        raise HTTPException(status_code=500, detail=str(e))

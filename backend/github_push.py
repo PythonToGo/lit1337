@@ -1,6 +1,7 @@
 import httpx
 from datetime import datetime
 import base64
+from fastapi import HTTPException
 
 GITHUB_API_URL = "https://api.github.com"
 
@@ -55,30 +56,47 @@ async def get_existing_file_content(access_token: str, repo: str, path: str):
 
 
 async def push_code_to_github(access_token: str, repo: str, filename: str, content: str):
-    if not await repo_exists(access_token, repo):
-        created = await create_repo(access_token, repo.split("/")[-1])
-        if not created:
-            return 400, {"error": f"Repo {repo} creation failed"}
+    try:
+        # 한 번의 API 호출로 처리
+        url = f"{GITHUB_API_URL}/repos/{repo}/contents/{filename}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/vnd.github+json"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            # 파일 존재 여부와 내용을 한 번에 확인
+            existing_file = await client.get(url, headers=headers)
+            
+            if existing_file.status_code == 200:
+                existing_data = existing_file.json()
+                existing_content = base64.b64decode(existing_data["content"]).decode()
+                
+                if existing_content.strip() == content.strip():
+                    return 200, {"message": "No change"}
+                    
+                payload = {
+                    "message": f"Update LeetCode solution: {filename}",
+                    "content": base64.b64encode(content.encode()).decode(),
+                    "sha": existing_data["sha"]
+                }
+            else:
+                payload = {
+                    "message": f"Add LeetCode solution: {filename}",
+                    "content": base64.b64encode(content.encode()).decode()
+                }
+            
+            response = await client.put(url, headers=headers, json=payload)
+            return response.status_code, response.json()
+            
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"GitHub API error: {str(e)}")
 
+async def check_and_push_code(access_token: str, repo: str, filename: str, content: str):
     existing_content, sha = await get_existing_file_content(access_token, repo, filename)
+    
+    status, result = await push_code_to_github(access_token, repo, filename, content)
+    if status != 200:
+        raise Exception(f"Failed to push code: {result.get('error', 'Unknown error')}")
 
-    # if no change, return 200
-    if existing_content and existing_content.strip() == content.strip():
-        return 200, {"message": "No change"}
-
-    payload = {
-        "message": f"Add LeetCode solution: {filename}",
-        "content": base64.b64encode(content.encode()).decode(),
-    }
-    if sha:
-        payload["sha"] = sha
-
-    url = f"{GITHUB_API_URL}/repos/{repo}/contents/{filename}"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    async with httpx.AsyncClient() as client:
-        res = await client.put(url, headers=headers, json=payload)
-        return res.status_code, res.json()
+    return False, "Code pushed successfully"

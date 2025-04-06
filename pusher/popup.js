@@ -6,78 +6,90 @@ const logoutBtn = document.getElementById("logout-btn");
 const statusEl = document.getElementById("status");
 const repoEl = document.getElementById("repo");
 const lastPushEl = document.getElementById("last-push");
+const lastLoginEl = document.getElementById("last-login");
+const loadingEl = document.getElementById("loading");
+const githubBtn = document.getElementById("github-btn");
 
-// 초기 렌더링: JWT 검사 + 서버에 유저 존재 확인
-chrome.storage.local.get(["jwt", "username", "last_push"], ({ jwt, username, last_push }) => {
-  if (!jwt) return;
-
-  fetch("https://lit1337.up.railway.app/me", {
-    headers: { Authorization: `Bearer ${jwt}` }
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error("Invalid or expired token");
-      return res.json();
-    })
-    .then(() => {
-      // 서버에서도 유저가 존재 → UI 렌더
-      updateUI(username, last_push);
-    })
-    .catch(() => {
-      // 서버에는 유저 없음 → 로그아웃 처리
-      chrome.storage.local.clear(() => {
-        statusEl.innerText = "Session expired. Please login again.";
-        loginBtn.style.display = "inline-block";
-        logoutBtn.style.display = "none";
-        repoEl.innerText = "";
-        lastPushEl.innerText = "";
-      });
-    });
+// initial render: check JWT + check if user exists on server
+chrome.storage.local.get(["jwt", "username", "last_push", "last_login"], ({ jwt, username, last_push, last_login }) => {
+  if (jwt && username) {
+    updateUI(username, last_push, last_login);
+  } else {
+    // if not logged in 
+    statusEl.innerText = "🔒 Not logged in";
+    loginBtn.style.display = "inline-block";
+    logoutBtn.style.display = "none";
+    githubBtn.style.display = "none"; // Hide GitHub button when not logged in
+    lastPushEl.style.display = "none"; // Hide last push element when not logged in
+  }
 });
 
-// 로그인 버튼 클릭
+// click login button
 loginBtn.addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "oauth-login" }, (response) => {
-    if (response.success) {
-      const { username, last_push, token } = response;
+  loadingEl.classList.add("show");
 
-      // JWT + 유저 정보 저장
-      chrome.storage.local.set(
-        { jwt: token, username, last_push },
-        () => updateUI(username, last_push)
-      );
+  chrome.runtime.sendMessage({ type: "oauth-login" }, (response) => {
+    loadingEl.classList.remove("show");
+
+    console.log("Login response:", response);
+
+    if (response.success) {
+      const { token, last_push } = response;
+
+      chrome.storage.local.set({ jwt: token }, () => {
+        console.log("User data saved.");
+        location.reload(); // popup refresher
+      });
     } else {
       statusEl.innerText = "GitHub login failed.";
     }
   });
 });
 
-// 로그아웃 버튼 클릭
+// click logout button
 logoutBtn.addEventListener("click", () => {
   chrome.storage.local.clear(() => {
     statusEl.innerText = "Logged out.";
     loginBtn.style.display = "inline-block";
     logoutBtn.style.display = "none";
+    githubBtn.style.display = "none"; // Hide GitHub button on logout
     repoEl.innerText = "";
     lastPushEl.innerText = "";
+    lastPushEl.style.display = "none"; // Hide last push element on logout
   });
 });
 
-// UI 업데이트 함수
-function updateUI(username, last_push) {
+// click github button
+githubBtn.addEventListener("click", () => {
+  chrome.storage.local.get("username", ({ username }) => {
+    if (username) {
+      const repoUrl = `https://github.com/${username}/leetcode_repo`;
+      chrome.tabs.create({ url: repoUrl }); // 새 탭에서 레포지토리 열기
+    } else {
+      console.error("Username not found.");
+    }
+  });
+});
+
+// UI update function
+function updateUI(username, last_push, last_login) {
   statusEl.innerText = `Welcome, ${username}!`;
   loginBtn.style.display = "none";
   logoutBtn.style.display = "inline-block";
-  repoEl.innerText = `Connected repo: ${username}/leetcode-repo`;
+  githubBtn.style.display = "inline-block"; // Show GitHub button when logged in
+  repoEl.innerText = `Connected repo: ${username}/leetcode_repo`;
 
   if (last_push) {
-    const date = new Date(last_push);
-    lastPushEl.innerText = `Recent push: ${date.toLocaleString()}`;
+    lastPushEl.style.display = "inline-block"; // Show last push element when there is a last push
+    const pushDate = new Date(last_push);
+    lastPushEl.innerText = `Last push: ${pushDate.getFullYear()}-${(pushDate.getMonth() + 1).toString().padStart(2, '0')}-${pushDate.getDate().toString().padStart(2, '0')} ${pushDate.getHours().toString().padStart(2, '0')}:${pushDate.getMinutes().toString().padStart(2, '0')}`;
+  } else {
+    lastPushEl.style.display = "none"; // Hide last push element if no last push
+  }
+
+  if (last_login) {
+    const loginDate = new Date(last_login);
+    lastLoginEl.innerText = `Last login: ${loginDate.getFullYear()}-${(loginDate.getMonth() + 1).toString().padStart(2, '0')}-${loginDate.getDate().toString().padStart(2, '0')} ${loginDate.getHours().toString().padStart(2, '0')}:${loginDate.getMinutes().toString().padStart(2, '0')}`;
   }
 }
 
-chrome.runtime.onStartup?.addListener(() => {
-  chrome.storage.local.clear();
-});
-chrome.runtime.onInstalled?.addListener(() => {
-  chrome.storage.local.clear();
-});

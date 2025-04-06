@@ -131,7 +131,7 @@ async function getStatsFromAPI() {
   }
 
   try {
-    const res = await fetch("https://lit1337.up.railway.app/stats", {
+    const res = await fetch(`${API_BASE_URL}/stats`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${jwt}`
@@ -151,12 +151,58 @@ function isAcceptedOnly() {
   return acceptedElem && acceptedElem.textContent.trim() === "Accepted";
 }
 
-function autoSubmitAndPush() {
-  if (isPushing) return; // 이미 푸시중이면 중단
+function getSubmissionResult() {
+  const resultXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[11]/div/div/div/div[2]/div/div[1]/div[1]/div[1]/span';
+  const resultElem = document.evaluate(resultXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  return resultElem ? resultElem.textContent.trim() : null;
+}
+
+// Submit 버튼 클릭 후 상태를 모니터링하는 함수
+function monitorSubmissionStatus(pushBtn) {
+  let attempt = 0;
+  const maxAttempts = 10; // 최대 15초 대기 (1.5초 * 10)
+  
+  const interval = setInterval(() => {
+    attempt++;
+    
+    // Submit 결과가 나온 경우
+    if (document.querySelector('.view-line')) {
+      const result = getSubmissionResult();
+      if (result) {
+        clearInterval(interval);
+        
+        if (result === "Accepted") {
+          pushCodeToGitHub(pushBtn).finally(() => {
+            isPushing = false;
+          });
+        } else {
+          pushBtn.innerText = `❌ ${result}`;
+          isPushing = false;
+        }
+      } else if (attempt >= maxAttempts) {
+        clearInterval(interval);
+        pushBtn.innerText = "❌ No Result";
+        isPushing = false;
+      }
+    }
+    
+    // timeout
+    if (attempt >= maxAttempts) {
+      clearInterval(interval);
+      pushBtn.innerText = "❌ Timeout";
+      isPushing = false;
+    }
+  }, 1500);
+}
+
+// Push button click handler
+function handlePushButtonClick() {
+  if (isPushing) return;
   isPushing = true;
 
-  const submitButton = Array.from(document.querySelectorAll("button")).find(btn => btn.innerText.trim().toLowerCase() === "submit");
   const pushBtn = document.getElementById("leet-github-push");
+  const submitButton = Array.from(document.querySelectorAll("button"))
+    .find(btn => btn.innerText.trim().toLowerCase() === "submit");
 
   if (!submitButton || !pushBtn) {
     alert("Submit button not found");
@@ -164,35 +210,13 @@ function autoSubmitAndPush() {
     return;
   }
 
+  // Submit button click and monitor status
   pushBtn.innerText = "⏳ Submitting...";
   submitButton.click();
-
-  let attempt = 0;
-  const maxTry = 10;
-  const interval = setInterval(() => {
-    attempt++;
-
-    if (isAcceptedOnly()) {
-      clearInterval(interval);
-      const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
-      if (confirmed) {
-        pushCodeToGitHub(pushBtn).finally(() => {
-          isPushing = false;
-        });
-      } else {
-        pushBtn.innerText = "🔁 Push";
-        isPushing = false;
-      }
-    }
-
-    if (attempt >= maxTry) {
-      clearInterval(interval);
-      pushBtn.innerText = "❌ Not Accepted";
-      isPushing = false;
-    }
-  }, 1500);
+  monitorSubmissionStatus(pushBtn);
 }
 
+// Add push button
 function addPushButton() {
   if (document.getElementById("leet-github-push")) return;
 
@@ -215,43 +239,52 @@ function addPushButton() {
     cursor: pointer;
   `;
 
-  pushBtn.onclick = () => autoSubmitAndPush();
+  pushBtn.onclick = handlePushButtonClick;
   buttonGroup.insertBefore(pushBtn, buttonGroup.firstChild);
 }
 
-async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-push")) {
-  const meta = getProblemMeta();
-  const slug = meta?.slug;
-  const title = meta?.title;
+// Modify monitorSubmitButton to reset button state after manual submission
+function monitorSubmitButton() {
+  const pushBtn = document.getElementById("leet-github-push");
+  if (!pushBtn) return;
 
-  if (!slug || !title) {
+  const observer = new MutationObserver((mutations) => {
+    // Only update button state if not in pushing process
+    if (!isPushing) {
+      const currentText = pushBtn.innerText;
+      // Reset button only if it was in an error state (starts with ❌)
+      if (currentText.startsWith("❌")) {
+        pushBtn.innerText = "🔄 Push";
+      }
+    }
+  });
+
+  // Monitor result container
+  const resultContainer = document.querySelector('.view-line')?.parentElement;
+  if (resultContainer) {
+    observer.observe(resultContainer, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+  }
+}
+
+async function pushCodeToGitHub(pushBtn) {
+  // 이미 Accepted 상태인지 먼저 확인
+  if (!isAcceptedOnly()) {
+    pushBtn.innerText = "❌ Not Accepted";
+    return;
+  }
+
+  const meta = getProblemMeta();
+  if (!meta?.slug || !meta?.title) {
     pushBtn.innerText = "❌ Error";
     return;
   }
 
-  // submit 강제실행
-  const submitButton = Array.from(document.querySelectorAll("button"))
-    .find(btn => btn.innerText.trim().toLowerCase() === "submit");
-  if (submitButton) submitButton.click();
-
-  // 5~15초 내 accepted 검사 반복
-  let accepted = false;
-  const interval = setInterval(() => {
-    if (isAcceptedOnly()) {
-      accepted = true;
-      clearInterval(interval);
-    }
-  }, 3000);
-
-  await new Promise(resolve => setTimeout(() => {
-    clearInterval(interval);
-    resolve();
-  }, 15000));
-
-  if (!accepted) {
-    pushBtn.innerText = "❌ Not Accepted";
-    return;
-  }
+  const slug = meta.slug;
+  const title = meta.title;
 
   const lang = getLanguageFromEditor();
   const ext = getExtensionFromLang(lang || 'txt');
@@ -277,14 +310,28 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
   pushBtn.disabled = true;
 
   try {
-    const res = await fetch("https://lit1337.up.railway.app/push-code", {
+    const res = await fetch(`${API_BASE_URL}/push-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${jwt}`
+        "Authorization": `Bearer ${jwt}`,
+        "Accept": "application/json",
+        "Origin": "https://leetcode.com"
       },
-      body: JSON.stringify({ filename, code })
+      credentials: 'include',
+      mode: 'cors',
+      body: JSON.stringify({ 
+        filename, 
+        code,
+        origin: "https://leetcode.com"
+      })
     });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      console.error("Server error:", errorData);
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
 
     const data = await res.json();
 
@@ -294,6 +341,10 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
       } else if (data.message === "No change") {
         pushBtn.innerText = "🟡 No change";
       } else {
+        const pushedAt = data.pushed_at || new Date().toISOString();
+        chrome.storage.local.set({ last_push: pushedAt }, () => {
+          console.log(`[Push] Last push: ${pushedAt}`);
+        });
         pushBtn.innerText = "✅ Push";
       }
     } else {
@@ -302,6 +353,8 @@ async function pushCodeToGitHub(pushBtn = document.getElementById("leet-github-p
   } catch (err) {
     console.error("Push error:", err);
     pushBtn.innerText = "❌ Error";
+    if (err.message) console.error("Error message:", err.message);
+    if (err.stack) console.error("Error stack:", err.stack);
   }
 
   pushBtn.disabled = false;
@@ -313,13 +366,11 @@ function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');
   if (editor) {
     addPushButton();
-    // monitorSubmitButton();
   } else {
     let retry = 0;
     const interval = setInterval(() => {
       if (document.querySelector('.monaco-editor')) {
         addPushButton();
-        // monitorSubmitButton();
         clearInterval(interval);
       } else if (retry++ > 50) {
         clearInterval(interval);
@@ -331,8 +382,29 @@ function waitForEditorAndInsertButton() {
 waitForEditorAndInsertButton();
 const observer = new MutationObserver(() => {
   waitForEditorAndInsertButton();
+  monitorSubmitButton();
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
 // first call
-setTimeout(waitForEditorAndInsertButton, 1000);
+setTimeout(() => {
+  waitForEditorAndInsertButton();
+  monitorSubmitButton();
+}, 1000);
+
+document.addEventListener("keydown", function (e) {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const isShortcut = (isMac && e.metaKey && !e.ctrlKey && !e.altKey && e.key === 'm') ||
+                     (!isMac && e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'm');
+
+  if (isShortcut) {
+    e.preventDefault(); // prevent browser behavior like minimizing
+    const pushBtn = document.getElementById("leet-github-push");
+    if (pushBtn) {
+      console.log("Shortcut triggered: Push to GitHub");
+      handlePushButtonClick();
+    } else {
+      console.warn("Push button not found.");
+    }
+  }
+});

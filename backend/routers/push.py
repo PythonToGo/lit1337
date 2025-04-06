@@ -9,11 +9,15 @@ from github_oauth import get_user_info
 from utils.leetcode import get_problem_difficulty
 import base64
 import httpx
+from datetime import datetime
 
 push_router = APIRouter()
 
 @push_router.post("/push-code")
 async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    # 캐싱 추가
+    DIFFICULTY_CACHE = {}
+    
     filename = data.get("filename")
     code = data.get("code")
     language = filename.split(".")[-1]
@@ -28,39 +32,33 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
     user_info = await get_user_info(access_token)
     github_username = user_info.get("login")
     repo = f"{github_username}/leetcode_repo"
-    
-    # check if existing file is same code
-    sha = await get_existing_file_sha(access_token, repo, filename)
-    if sha:
-        url = f"https://github.com/repos/{repo}/contnets/{filename}"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/vnd.github.v3+json",
-        }
-        async with httpx.AsyncClient() as client:
-            res = await client.get(url, headers=headers)
-            if res.status_code == 200:
-                existing_data = res.json()
-                existing_content = base64.b64decode(existing_data.get("content", "").decode())
-                if existing_content.strip() == code.strip():
-                    return {"message": "No change."}
-    push_status, push_result = await push_code_to_github(access_token, repo, filename, code)
 
-    # extract slug
+    # Check if the file content is the same before pushing
+    no_change, message = await check_and_push_code(access_token, repo, filename, code)
+    if no_change:
+        return {"message": message}
+
+    # Extract slug and calculate points
     slug = filename.split("_", 1)[-1].rsplit(".", 1)[0].replace("_", "-").lower()
-    difficulty_info = await get_problem_difficulty(slug)
+    
+    # 캐시된 difficulty 정보 사용
+    if slug not in DIFFICULTY_CACHE:
+        difficulty_info = await get_problem_difficulty(slug)
+        DIFFICULTY_CACHE[slug] = difficulty_info
+    
+    difficulty_info = DIFFICULTY_CACHE[slug]
     difficulty = difficulty_info.get("difficulty") if difficulty_info else None
     number = difficulty_info.get("number") if difficulty_info else None
     point_map = {"Easy": 3, "Medium": 6, "Hard": 12}
     point = point_map.get(difficulty, 0)
 
-    # insert into Problem table if not exists
+    # Insert into Problem table if not exists
     existing_problem = await db.execute(select(Problem).where(Problem.slug == slug))
     if not existing_problem.scalar_one_or_none():
         db.add(Problem(slug=slug, difficulty=difficulty, point=point))
         await db.commit()
 
-    # insert into PushLog only if not already exists
+    # Insert into PushLog only if not already exists
     result = await db.execute(select(PushLog).where(PushLog.user_id == user_obj.id, PushLog.filename == filename))
     if not result.scalar_one_or_none():
         db.add(PushLog(user_id=user_obj.id, filename=filename, language=language))

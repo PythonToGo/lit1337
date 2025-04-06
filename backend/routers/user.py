@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 user_router = APIRouter()
 
 @user_router.get("/me")
-@user_router.get("/me")
 async def read_me(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     github_id = user.get("github_id")
 

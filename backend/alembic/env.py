@@ -3,8 +3,17 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 from models import Base
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 config = context.config
+url = os.getenv("DATABASE_URL")
+if url.startswith("postgresql+asyncpg"):
+    url = url.replace("postgresql+asyncpg", "postgresql")
+
+config.set_main_option("sqlalchemy.url", url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

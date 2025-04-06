@@ -69,5 +69,6 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
     return {
         "message": "uploaded to github!",
         "difficulty": difficulty,
-        "point": point
+        "point": point,
+        "pushed_at": datetime.now().isoformat()
     }

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from models import User, PushLog, Problem, Solution
 from database import SessionLocal
 from sqlalchemy import select
+from datetime import datetime
 
 auth_router = APIRouter()
 
@@ -27,7 +28,8 @@ async def github_callback(request: Request):
             session.add(user)
         else:
             user.access_token = access_token
-
+            user.last_push = datetime.now()
+            user.last_login = datetime.now()
         await session.commit()
 
     jwt_token = create_access_token({"github_id": github_id})
@@ -37,6 +39,7 @@ async def github_callback(request: Request):
         "message": "GitHub login successful",
         "token": jwt_token,
         "username": username
+        "last_push": user.last_push
     })
 async def get_current_user(authorization: str = Header(...)):
     token = authorization.replace("Bearer ", "")

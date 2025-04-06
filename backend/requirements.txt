@@ -11,3 +11,4 @@ aiosqlite
 greenlet
 python-jose
 alembic
+psycopg2

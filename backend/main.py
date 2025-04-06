@@ -29,7 +29,7 @@ app.include_router(solution.solution_router)
 @app.on_event("startup")
 async def startup_event():
     print("🟡 [startup] Running startup event...")
-    await init_db()
+    # await init_db()
 
     
 @app.get("/ping")

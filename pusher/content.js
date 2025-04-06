@@ -1,5 +1,3 @@
-// importScripts("config.js");
-
 let isPushing = false;
 let cachedJwt = null;
 
@@ -153,8 +151,14 @@ function isAcceptedOnly() {
   return acceptedElem && acceptedElem.textContent.trim() === "Accepted";
 }
 
+function getSubmissionResult() {
+  const resultXPath = '/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[11]/div/div/div/div[2]/div/div[1]/div[1]/div[1]/span';
+  const resultElem = document.evaluate(resultXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  return resultElem ? resultElem.textContent.trim() : null;
+}
+
 // Submit 버튼 클릭 후 상태를 모니터링하는 함수
-function monitorSubmissionStatus(pushBtn, onAccepted) {
+function monitorSubmissionStatus(pushBtn) {
   let attempt = 0;
   const maxAttempts = 10; // 최대 15초 대기 (1.5초 * 10)
   
@@ -163,17 +167,26 @@ function monitorSubmissionStatus(pushBtn, onAccepted) {
     
     // Submit 결과가 나온 경우
     if (document.querySelector('.view-line')) {
-      if (isAcceptedOnly()) {
+      const result = getSubmissionResult();
+      if (result) {
         clearInterval(interval);
-        onAccepted(); // Accepted 상태일 때 콜백 실행
+        
+        if (result === "Accepted") {
+          pushCodeToGitHub(pushBtn).finally(() => {
+            isPushing = false;
+          });
+        } else {
+          pushBtn.innerText = `❌ ${result}`;
+          isPushing = false;
+        }
       } else if (attempt >= maxAttempts) {
         clearInterval(interval);
-        pushBtn.innerText = "❌ Not Accepted";
+        pushBtn.innerText = "❌ No Result";
         isPushing = false;
       }
     }
     
-    // 최대 시도 횟수 초과
+    // timeout
     if (attempt >= maxAttempts) {
       clearInterval(interval);
       pushBtn.innerText = "❌ Timeout";
@@ -182,7 +195,7 @@ function monitorSubmissionStatus(pushBtn, onAccepted) {
   }, 1500);
 }
 
-// Push 버튼 클릭 핸들러
+// Push button click handler
 function handlePushButtonClick() {
   if (isPushing) return;
   isPushing = true;
@@ -197,38 +210,13 @@ function handlePushButtonClick() {
     return;
   }
 
-  // 이미 Accepted 상태인 경우
-  if (isAcceptedOnly()) {
-    const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
-    if (confirmed) {
-      pushCodeToGitHub(pushBtn).finally(() => {
-        isPushing = false;
-      });
-    } else {
-      pushBtn.innerText = "🔁 Push";
-      isPushing = false;
-    }
-    return;
-  }
-
-  // Submit 버튼 클릭 및 상태 모니터링
+  // Submit button click and monitor status
   pushBtn.innerText = "⏳ Submitting...";
   submitButton.click();
-
-  monitorSubmissionStatus(pushBtn, () => {
-    const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
-    if (confirmed) {
-      pushCodeToGitHub(pushBtn).finally(() => {
-        isPushing = false;
-      });
-    } else {
-      pushBtn.innerText = "🔁 Push";
-      isPushing = false;
-    }
-  });
+  monitorSubmissionStatus(pushBtn);
 }
 
-// Push 버튼 추가
+// Add push button
 function addPushButton() {
   if (document.getElementById("leet-github-push")) return;
 
@@ -255,28 +243,23 @@ function addPushButton() {
   buttonGroup.insertBefore(pushBtn, buttonGroup.firstChild);
 }
 
-// Submit 버튼의 상태 변화를 감지하는 옵저버
+// Modify monitorSubmitButton to reset button state after manual submission
 function monitorSubmitButton() {
   const pushBtn = document.getElementById("leet-github-push");
   if (!pushBtn) return;
 
   const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList' || mutation.type === 'characterData') {
-        if (isAcceptedOnly() && !isPushing) {
-          const confirmed = confirm("✅ Problem accepted!\nDo you want to push your code to GitHub?");
-          if (confirmed) {
-            isPushing = true;
-            pushCodeToGitHub(pushBtn).finally(() => {
-              isPushing = false;
-            });
-          }
-        }
+    // Only update button state if not in pushing process
+    if (!isPushing) {
+      const currentText = pushBtn.innerText;
+      // Reset button only if it was in an error state (starts with ❌)
+      if (currentText.startsWith("❌")) {
+        pushBtn.innerText = "🔄 Push";
       }
     }
   });
 
-  // Submit 결과를 표시하는 요소 감시
+  // Monitor result container
   const resultContainer = document.querySelector('.view-line')?.parentElement;
   if (resultContainer) {
     observer.observe(resultContainer, {
@@ -353,17 +336,15 @@ async function pushCodeToGitHub(pushBtn) {
     const data = await res.json();
 
     if (res.ok) {
-      const pushedAt = data.pushed_at || new Date().toISOString();
-
-      chrome.storage.local.set({ last_push: pushedAt }, () => {
-        console.log(`[Push] Last push: ${pushedAt}`);
-      });
-
       if (data.message === "Already pushed!") {
         pushBtn.innerText = "⚠️ Already";
       } else if (data.message === "No change") {
         pushBtn.innerText = "🟡 No change";
       } else {
+        const pushedAt = data.pushed_at || new Date().toISOString();
+        chrome.storage.local.set({ last_push: pushedAt }, () => {
+          console.log(`[Push] Last push: ${pushedAt}`);
+        });
         pushBtn.innerText = "✅ Push";
       }
     } else {
@@ -385,13 +366,11 @@ function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');
   if (editor) {
     addPushButton();
-    // monitorSubmitButton();
   } else {
     let retry = 0;
     const interval = setInterval(() => {
       if (document.querySelector('.monaco-editor')) {
         addPushButton();
-        // monitorSubmitButton();
         clearInterval(interval);
       } else if (retry++ > 50) {
         clearInterval(interval);
@@ -412,3 +391,20 @@ setTimeout(() => {
   waitForEditorAndInsertButton();
   monitorSubmitButton();
 }, 1000);
+
+document.addEventListener("keydown", function (e) {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const isShortcut = (isMac && e.metaKey && !e.ctrlKey && !e.altKey && e.key === 'm') ||
+                     (!isMac && e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'm');
+
+  if (isShortcut) {
+    e.preventDefault(); // prevent browser behavior like minimizing
+    const pushBtn = document.getElementById("leet-github-push");
+    if (pushBtn) {
+      console.log("Shortcut triggered: Push to GitHub");
+      handlePushButtonClick();
+    } else {
+      console.warn("Push button not found.");
+    }
+  }
+});

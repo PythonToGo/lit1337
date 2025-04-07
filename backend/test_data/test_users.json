@@ -1,0 +1,56 @@
+[
+  {
+    "github_id": 101,
+    "username": "alice",
+    "access_token": "token_alice",
+    "push_logs": [
+      { "filename": "1_alice.py", "language": "python" },
+      { "filename": "2_alice.py", "language": "python" }
+    ],
+    "solutions": [
+      { "problem_slug": "two-sum", "language": "python", "code": "# Alice's solution" },
+      { "problem_slug": "reverse-string", "language": "python", "code": "# Another solution" }
+    ]
+  },
+  {
+    "github_id": 102,
+    "username": "bob",
+    "access_token": "token_bob",
+    "push_logs": [
+      { "filename": "1_bob.cpp", "language": "cpp" }
+    ],
+    "solutions": [
+      { "problem_slug": "add-two-numbers", "language": "cpp", "code": "// Bob's solution" }
+    ]
+  },
+  {
+    "github_id": 103,
+    "username": "charlie",
+    "access_token": "token_charlie",
+    "push_logs": [],
+    "solutions": []
+  },
+  {
+    "github_id": 104,
+    "username": "diana",
+    "access_token": "token_diana",
+    "push_logs": [
+      { "filename": "diana.py", "language": "python" }
+    ],
+    "solutions": [
+      { "problem_slug": "palindrome-number", "language": "python", "code": "# Check palindrome" }
+    ]
+  },
+  {
+    "github_id": 105,
+    "username": "eve",
+    "access_token": "token_eve",
+    "push_logs": [
+      { "filename": "eve1.js", "language": "javascript" },
+      { "filename": "eve2.js", "language": "javascript" }
+    ],
+    "solutions": [
+      { "problem_slug": "valid-parentheses", "language": "javascript", "code": "// Eve's JS solution" }
+    ]
+  }
+]

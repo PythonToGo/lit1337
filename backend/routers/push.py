@@ -16,7 +16,6 @@ push_router = APIRouter()
 @push_router.post("/push-code")
 async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
-        # 입력 데이터 검증
         if not data.get("filename") or not data.get("code"):
             raise HTTPException(status_code=400, detail="Missing required fields")
         
@@ -35,10 +34,10 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
         github_username = user_info.get("login")
         repo = f"{github_username}/leetcode_repo"
 
-        # GitHub에 코드 푸시
+        # push
         status, result = await push_code_to_github(access_token, repo, filename, code)
         
-        # 201(Created)와 200(OK) 모두 성공으로 처리
+        # 201, 200 OK
         if status not in [200, 201]:
             raise HTTPException(status_code=status, detail=result.get("message", "Failed to push code"))
 
@@ -64,6 +63,12 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
         db.add(PushLog(user_id=user_obj.id, filename=filename, language=language))
         await db.commit()
 
+        # Check if the solution was accepted
+        if result.get("message") != "No change":
+            # Insert into Solution table
+            db.add(Solution(user_id=user_obj.id, problem_slug=slug, language=language, code=code))
+            await db.commit()
+
         return {
             "message": "uploaded to github!",
             "difficulty": difficulty,
@@ -73,9 +78,8 @@ async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession
 
     except Exception as e:
         print(f"Error in push_code: {str(e)}")
-        # 트랜잭션 롤백
         await db.rollback()
-        # 201 상태 코드는 성공으로 처리
+        # 201=ok
         if "201" in str(e):
             return {
                 "message": "uploaded to github!",

@@ -271,7 +271,7 @@ function monitorSubmitButton() {
 }
 
 async function pushCodeToGitHub(pushBtn) {
-  // 이미 Accepted 상태인지 먼저 확인
+  // 이미 Accepted인지 먼저 확인
   if (!isAcceptedOnly()) {
     pushBtn.innerText = "❌ Not Accepted";
     return;

@@ -10,10 +10,37 @@ const lastLoginEl = document.getElementById("last-login");
 const loadingEl = document.getElementById("loading");
 const githubBtn = document.getElementById("github-btn");
 
+// Fetch stats from the backend
+function fetchStats() {
+  fetch(`${API_BASE_URL}/stats`)
+    .then(response => response.json())
+    .then(data => {
+      updateStatsUI(data);
+    })
+    .catch(error => {
+      console.error('Error fetching stats:', error);
+    });
+}
+
+// Update the UI with stats
+function updateStatsUI(stats) {
+  const totalSolvedEl = document.getElementById('total-solved');
+  const recentProblemsEl = document.getElementById('recent-problems');
+
+  totalSolvedEl.innerText = `Total solved: ${stats.total_solved}`;
+
+  if (stats.recent && stats.recent.length > 0) {
+    recentProblemsEl.innerText = 'Recent problems:\n' + stats.recent.map(problem => `- ${problem.filename} at ${problem.timestamp}`).join('\n');
+  } else {
+    recentProblemsEl.innerText = 'No recent problems.';
+  }
+}
+
 // initial render: check JWT + check if user exists on server
 chrome.storage.local.get(["jwt", "username", "last_push", "last_login"], ({ jwt, username, last_push, last_login }) => {
   if (jwt && username) {
     updateUI(username, last_push, last_login);
+    fetchStats();
   } else {
     // if not logged in 
     statusEl.innerText = "🔒 Not logged in";

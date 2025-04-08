@@ -6,19 +6,37 @@ from models import Base
 import os
 from dotenv import load_dotenv
 
-load_dotenv(".env.railway")
+
+# env load
+env_path = os.getenv("ENV_PATH")
+if env_path:
+    print(f"[alembic/env.py] Loading custom ENV_PATH: {env_path}")
+    load_dotenv(env_path)
+    database_url = os.getenv("DATABASE_URL", "").replace("+asyncpg", "").replace("@db", "@localhost")
+else:
+    print("[alembic/env.py] Loading default .env/.env.railway")
+    load_dotenv(".env")  # Railway default
+    database_url = os.getenv("DATABASE_URL", "").replace("+asyncpg", "")
+
 
 config = context.config
-url = os.getenv("DATABASE_URL")
-if url and url.startswith("postgresql+asyncpg"):
-    url = url.replace("postgresql+asyncpg", "postgresql")
+config.set_main_option("sqlalchemy.url", database_url)
 
-config.set_main_option("sqlalchemy.url", url)
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+
+
+# url = os.getenv("DATABASE_URL")
+# if url and url.startswith("postgresql+asyncpg"):
+#     url = url.replace("postgresql+asyncpg", "postgresql")
+
+# config.set_main_option("sqlalchemy.url", url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# if config.config_file_name is not None:
+#     fileConfig(config.config_file_name)
 
 
 # add your model's MetaData object here

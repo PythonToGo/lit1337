@@ -11,9 +11,21 @@ from models import User, PushLog, Solution
 from database import Base
 
 # Load environment variables
-load_dotenv(".env.railway")
+def get_database_url():
+    env_path = os.getenv("ENV_PATH")
+    if env_path:
+        print(f"[cleanup_user.py] Loading custom ENV_PATH: {env_path}")
+        load_dotenv(env_path)
+        return os.getenv("DATABASE_URL", "").replace("+asyncpg", "").replace("@db", "@localhost")
+    else:
+        print("[cleanup_user.py] Loading default .env/.env.railway")
+        load_dotenv(".env")
+        return os.getenv("DATABASE_URL", "").replace("+asyncpg", "")
 
-DATABASE_URL = os.getenv("DATABASE_URL").replace("+asyncpg", "")
+DATABASE_URL = get_database_url()
+print(f"[cleanup_user.py] Using DATABASE_URL: {DATABASE_URL}")
+
+
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 

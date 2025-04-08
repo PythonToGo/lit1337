@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from sqlalchemy import create_engine
@@ -43,8 +43,8 @@ def load_test_users():
                 github_id=u["github_id"],
                 username=u["username"],
                 access_token=u["access_token"],
-                last_push=datetime.utcnow(),
-                last_login=datetime.utcnow()
+                last_push=datetime.now(timezone.utc),
+                last_login=datetime.now(timezone.utc)
             )
             db.add(user)
             db.flush()  # get user.id

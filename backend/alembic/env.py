@@ -6,7 +6,7 @@ from models import Base
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(".env.railway")
 
 config = context.config
 url = os.getenv("DATABASE_URL")

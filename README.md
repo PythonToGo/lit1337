@@ -1,7 +1,8 @@
 # 🔥 lit1337
 
 **LeetCode is LIT now.**  
-Automatically push your solved LeetCode problems to GitHub and visualize your coding journey with a powerful dashboard.
+Automatically push your solved LeetCode problems to GitHub and visualize your coding journey with a powerful dashboard\
+
 
 ---
 

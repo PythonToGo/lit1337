@@ -19,7 +19,7 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    github_id = Column(Integer, unique=True, index=True)
+    github_id = Column(String, unique=True, index=True)
     username = Column(String, unique=True, index=True)
     access_token = Column(String)
     last_push = Column(DateTime(timezone=True))

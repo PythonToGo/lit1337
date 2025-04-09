@@ -1,6 +1,6 @@
 # 🔥 lit1337
 
-**LeetCode is LIT now.**  
+**Leet Code Pusher**
 Automatically push your solved LeetCode problems to GitHub and visualize your coding journey with a powerful dashboard\
 
 

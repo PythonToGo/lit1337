@@ -80,7 +80,7 @@ npm run dev
 ## 🛠️ Tech Stack
 
 Layer	| Tech
-Frontend |	React (or Next.js), Chart.js, HTML 
+Frontend |	React (or Next.js), HTML 
 Extension |	Vanilla JS, Manifest V3 
 Backend |	FastAPI, OAuth2, JWT, SQLAlchemy 
 Database |	SQLite (development), PostgreSQL (prod) 

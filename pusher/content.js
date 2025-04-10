@@ -73,14 +73,17 @@ function getCsrfToken() {
 function getJwtToken() {
   return new Promise((resolve, reject) => {
     if (cachedJwt) {
+      console.log("Using cached JWT token:", cachedJwt ? `${cachedJwt.substring(0, 10)}...` : 'none');
       return resolve(cachedJwt);
     }
 
     chrome.storage.local.get("jwt", ({ jwt }) => {
       if (jwt) {
+        console.log("JWT token from storage:", jwt ? `${jwt.substring(0, 10)}...` : 'none');
         cachedJwt = jwt;
         resolve(jwt);
       } else {
+        console.error("JWT token not found in storage");
         reject("JWT not found");
       }
     });
@@ -301,8 +304,34 @@ async function pushCodeToGitHub(pushBtn) {
   let jwt;
   try {
     jwt = await getJwtToken();
+    if (!jwt || jwt.trim() === '') {
+      pushBtn.innerText = "❌ Invalid JWT";
+      console.error("JWT token is empty or invalid");
+      return;
+    }
   } catch (e) {
     pushBtn.innerText = "❌ No Login";
+    console.error("JWT token error:", e);
+    return;
+  }
+
+  // Get selected repository from storage
+  const selectedRepo = await new Promise(resolve => {
+    chrome.storage.local.get(['selected_repo'], (result) => {
+      resolve(result.selected_repo || "");
+    });
+  });
+  
+  if (!selectedRepo) {
+    pushBtn.innerText = "❌ No Repo";
+    console.error("No repository selected. Please select a repository in the extension popup.");
+    
+    // Show a more helpful message to the user with instructions
+    setTimeout(() => {
+      alert("Repository not selected. Please click on the LeetCode Pusher extension icon, then select a repository from the dropdown menu.");
+      pushBtn.innerText = "🔄 Push";
+    }, 500);
+    
     return;
   }
 
@@ -310,45 +339,78 @@ async function pushCodeToGitHub(pushBtn) {
   pushBtn.disabled = true;
 
   try {
+    console.log(`Pushing to repository: ${selectedRepo}`);
+    
+    // 백엔드가 기대하는 형식의 요청 본문 구성
+    const requestBody = { 
+      filename, 
+      code,
+      selected_repo: selectedRepo  // 백엔드가 필요로 하는 필수 필드
+    };
+    
+    // 필수 필드 체크
+    if (!filename || !code || !selectedRepo) {
+      pushBtn.innerText = "❌ Invalid Data";
+      console.error("Missing required fields for push", { filename, codeLength: code?.length, selectedRepo });
+      return;
+    }
+    
+    // 요청 로그
+    console.log("Request to:", `${API_BASE_URL}/push-code`);
+    console.log("Request body:", { ...requestBody, code: code.length > 50 ? `${code.substring(0, 50)}...` : code });
+    console.log("JWT Length:", jwt ? jwt.length : 'none');
+    console.log("JWT Token (first 20 chars):", jwt ? jwt.substring(0, 20) + '...' : 'none');
+    
+    // 올바른 인증 헤더 구성
+    const authHeader = `Bearer ${jwt}`;
+    
+    // 테스트로 다른 형식의 헤더도 시도
     const res = await fetch(`${API_BASE_URL}/push-code`, {
-      method: "POST",
+      method: "POST",  // 백엔드는 POST 메소드 기대
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${jwt}`,
-        "Accept": "application/json",
-        "Origin": "https://leetcode.com"
+        "Authorization": authHeader,
+        "Accept": "application/json"
       },
-      credentials: 'include',
       mode: 'cors',
-      body: JSON.stringify({ 
-        filename, 
-        code,
-        origin: "https://leetcode.com"
-      })
+      cache: 'no-cache', // 캐시 문제 방지
+      body: JSON.stringify(requestBody)
     });
 
+    // 응답 상태 코드와 헤더 로깅 추가
+    console.log(`API Response Status: ${res.status} ${res.statusText}`);
+    console.log("Response Headers:", Object.fromEntries(res.headers.entries()));
+
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      console.error("Server error:", errorData);
-      throw new Error(`HTTP error! status: ${res.status}`);
+      // 에러 응답에 대한 개선된 처리
+      let errorInfo = "";
+      try {
+        // JSON 형식 응답 처리 시도
+        const errorData = await res.json();
+        console.error("Server JSON error:", errorData);
+        errorInfo = JSON.stringify(errorData);
+      } catch (jsonError) {
+        // 텍스트 형식 응답 처리 (일반 오류 메시지)
+        const errorText = await res.text();
+        console.error("Server text error:", errorText);
+        errorInfo = errorText;
+      }
+      throw new Error(`HTTP error! status: ${res.status}, details: ${errorInfo}`);
     }
 
     const data = await res.json();
+    console.log("API Success Response:", data);
 
-    if (res.ok) {
-      if (data.message === "Already pushed!") {
-        pushBtn.innerText = "⚠️ Already";
-      } else if (data.message === "No change") {
-        pushBtn.innerText = "🟡 No change";
-      } else {
-        const pushedAt = data.pushed_at || new Date().toISOString();
-        chrome.storage.local.set({ last_push: pushedAt }, () => {
-          console.log(`[Push] Last push: ${pushedAt}`);
-        });
-        pushBtn.innerText = "✅ Push";
-      }
+    if (data.message === "Already pushed!") {
+      pushBtn.innerText = "⚠️ Already";
+    } else if (data.message === "No change") {
+      pushBtn.innerText = "🟡 No change";
     } else {
-      pushBtn.innerText = "❌ Failed";
+      const pushedAt = data.pushed_at || new Date().toISOString();
+      chrome.storage.local.set({ last_push: pushedAt }, () => {
+        console.log(`[Push] Last push: ${pushedAt}`);
+      });
+      pushBtn.innerText = "✅ Push";
     }
   } catch (err) {
     console.error("Push error:", err);
@@ -361,6 +423,17 @@ async function pushCodeToGitHub(pushBtn) {
   await getStatsFromAPI();
 }
 
+// Add a function to check and log the selected repository
+function checkSelectedRepository() {
+  chrome.storage.local.get(['selected_repo'], (result) => {
+    const selectedRepo = result.selected_repo;
+    if (selectedRepo) {
+      console.log(`[LeetCode Pusher] Using repository: ${selectedRepo}`);
+    } else {
+      console.warn("[LeetCode Pusher] No repository selected. Push function will not work.");
+    }
+  });
+}
 
 function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');
@@ -390,6 +463,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 setTimeout(() => {
   waitForEditorAndInsertButton();
   monitorSubmitButton();
+  checkSelectedRepository(); // Check repository on page load
 }, 1000);
 
 document.addEventListener("keydown", function (e) {

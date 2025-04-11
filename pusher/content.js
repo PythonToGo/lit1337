@@ -341,6 +341,7 @@ async function pushCodeToGitHub(pushBtn) {
   try {
     console.log(`Pushing to repository: ${selectedRepo}`);
     
+
     // 백엔드가 기대하는 형식의 요청 본문 구성
     const requestBody = { 
       filename, 
@@ -349,12 +350,14 @@ async function pushCodeToGitHub(pushBtn) {
     };
     
     // 필수 필드 체크
+
     if (!filename || !code || !selectedRepo) {
       pushBtn.innerText = "❌ Invalid Data";
       console.error("Missing required fields for push", { filename, codeLength: code?.length, selectedRepo });
       return;
     }
     
+
     // 요청 로그
     console.log("Request to:", `${API_BASE_URL}/push-code`);
     console.log("Request body:", { ...requestBody, code: code.length > 50 ? `${code.substring(0, 50)}...` : code });
@@ -370,9 +373,11 @@ async function pushCodeToGitHub(pushBtn) {
       headers: {
         "Content-Type": "application/json",
         "Authorization": authHeader,
+
         "Accept": "application/json"
       },
       mode: 'cors',
+
       cache: 'no-cache', // 캐시 문제 방지
       body: JSON.stringify(requestBody)
     });
@@ -411,6 +416,7 @@ async function pushCodeToGitHub(pushBtn) {
         console.log(`[Push] Last push: ${pushedAt}`);
       });
       pushBtn.innerText = "✅ Push";
+
     }
   } catch (err) {
     console.error("Push error:", err);

@@ -1,16 +1,23 @@
 import os
 import httpx
-from fastapi import Request
+import logging
+from fastapi import Request, HTTPException
+
+logger = logging.getLogger(__name__)
 
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 
 if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+    logger.error("GitHub OAuth credentials missing!")
+    logger.error(f"GITHUB_CLIENT_ID: {'present' if GITHUB_CLIENT_ID else 'missing'}")
+    logger.error(f"GITHUB_CLIENT_SECRET: {'present' if GITHUB_CLIENT_SECRET else 'missing'}")
     raise ValueError("❌ GitHub OAuth credentials not found")
 
 print(f"🔑 GitHub OAuth Configuration: Client ID: {GITHUB_CLIENT_ID[:5]}...")
 
 async def exchange_code_for_token(code: str):
+
     """Exchange GitHub OAuth code for token data"""
     try:
         async with httpx.AsyncClient() as client:
@@ -26,13 +33,14 @@ async def exchange_code_for_token(code: str):
                 headers={
                     "Accept": "application/json"
                 },
+
                 data={
                     "client_id": GITHUB_CLIENT_ID,
                     "client_secret": GITHUB_CLIENT_SECRET,
                     "code": code
                 }
             )
-            
+
             print(f"✅ GitHub token exchange status: {response.status_code}")
             print(f"Response headers: {dict(response.headers)}")
             

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from models import User, PushLog, Problem, Solution
 from database import SessionLocal, get_db
 from github_oauth import exchange_code_for_token, get_user_info
@@ -10,9 +11,12 @@ import jwt
 from datetime import datetime, timedelta
 import json
 
+
 auth_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @auth_router.get("/login/github/callback")
+
 async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
     try:
         print(f"🚀 Processing GitHub callback with code: {code[:10]}...")
@@ -108,6 +112,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         print(f"❌ Exception type: {type(e)}")
         print(f"❌ Exception args: {getattr(e, 'args', [])}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 async def get_current_user(authorization: str = Header(...)):
     token = authorization.replace("Bearer ", "")

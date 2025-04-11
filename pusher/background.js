@@ -3,6 +3,7 @@ const API_URL = "https://lit1337-dev.up.railway.app";
 const clientId = "Ov23lidbbczriEkuebBd";
 const REDIRECT_URL = `https://${chrome.runtime.id}.chromiumapp.org/`;
 
+
 console.log("Background script loaded. Redirect URL:", REDIRECT_URL);
 console.log("API URL:", API_URL);
 
@@ -222,6 +223,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Don't just open a tab - use the proper OAuth flow
     redirectToGitHubAuth();
   }
+
 });
 
 // Handle OAuth redirect - DISABLED because we now use chrome.identity.launchWebAuthFlow

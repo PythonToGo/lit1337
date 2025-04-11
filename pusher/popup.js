@@ -316,22 +316,12 @@ loginBtn.addEventListener("click", () => {
   chrome.storage.local.remove(["github_token", "token_type"], () => {
     console.log("Cleared existing GitHub token before login");
     chrome.runtime.sendMessage({ action: "login" });
-  });
-});
 
-// click logout button
-logoutBtn.addEventListener("click", () => {
-  chrome.storage.local.clear(() => {
-    statusEl.innerText = "Logged out.";
-    loginBtn.style.display = "inline-block";
-    logoutBtn.style.display = "none";
-    githubBtn.style.display = "none";
-    repoEl.innerText = "";
-    lastPushEl.innerText = "";
-    lastPushEl.style.display = "none";
-    repoSelect.style.display = "none";
   });
-});
+
+
+  });
+
 
 // click github button
 githubBtn.addEventListener("click", () => {
@@ -342,9 +332,10 @@ githubBtn.addEventListener("click", () => {
     } else {
       console.error("No repository selected.");
       statusEl.innerText = "Please select a repository first.";
+
     }
   });
-});
+
 
 // Repository selection change handler
 repoSelect.addEventListener('change', (e) => {
@@ -388,10 +379,40 @@ function updateUI(username, last_push, last_login, selected_repo) {
     lastPushEl.innerText = `Last push: ${pushDate.getFullYear()}-${(pushDate.getMonth() + 1).toString().padStart(2, '0')}-${pushDate.getDate().toString().padStart(2, '0')} ${pushDate.getHours().toString().padStart(2, '0')}:${pushDate.getMinutes().toString().padStart(2, '0')}`;
   } else {
     lastPushEl.style.display = "none";
+
   }
 
-  if (last_login) {
-    const loginDate = new Date(last_login);
-    lastLoginEl.innerText = `Last login: ${loginDate.getFullYear()}-${(loginDate.getMonth() + 1).toString().padStart(2, '0')}-${loginDate.getDate().toString().padStart(2, '0')} ${loginDate.getHours().toString().padStart(2, '0')}:${loginDate.getMinutes().toString().padStart(2, '0')}`;
+  // UI update function
+  function updateUI(username, last_push, last_login, selected_repo) {
+    statusEl.innerText = `Welcome, ${username}!`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+    repoSelect.style.display = "block";
+    
+    if (selected_repo) {
+      repoEl.innerText = `Connected repo: ${selected_repo}`;
+      repoEl.style.color = "#4caf50"; // Green color to indicate success
+      githubBtn.style.display = "inline-block";
+      setRepoBtn.style.display = "inline-block";
+    } else {
+      repoEl.innerText = "Please select a repository";
+      githubBtn.style.display = "none";
+      setRepoBtn.style.display = "none";
+    }
+
+    if (last_push) {
+      lastPushEl.style.display = "inline-block";
+      const pushDate = new Date(last_push);
+      lastPushEl.innerText = `Last push: ${pushDate.getFullYear()}-${(pushDate.getMonth() + 1).toString().padStart(2, '0')}-${pushDate.getDate().toString().padStart(2, '0')} ${pushDate.getHours().toString().padStart(2, '0')}:${pushDate.getMinutes().toString().padStart(2, '0')}`;
+    } else {
+      lastPushEl.style.display = "none";
+    }
+
+    if (last_login) {
+      const loginDate = new Date(last_login);
+      lastLoginEl.innerText = `Last login: ${loginDate.getFullYear()}-${(loginDate.getMonth() + 1).toString().padStart(2, '0')}-${loginDate.getDate().toString().padStart(2, '0')} ${loginDate.getHours().toString().padStart(2, '0')}:${loginDate.getMinutes().toString().padStart(2, '0')}`;
+    }
   }
+
 }
+

@@ -3,6 +3,7 @@ from jose import JWTError, jwt
 from fastapi import Header, HTTPException
 import os
 from dotenv import load_dotenv
+import traceback
 
 # Load environment variables
 def get_database_url():
@@ -31,7 +32,9 @@ def create_jwt_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    jwt_token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    print(f"[auth.py] Created JWT token: {jwt_token[:20]}...")
+    return jwt_token
 
 def create_access_token(data: dict):
     """Alias for create_jwt_token for backward compatibility"""
@@ -39,6 +42,7 @@ def create_access_token(data: dict):
 
 def verify_token(token: str):
     """Verify and decode a JWT token"""
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if "exp" not in payload:
@@ -51,21 +55,26 @@ def verify_token(token: str):
         return None
     except Exception as e:
         print(f"Token verification error: {str(e)}")
+
         return None
 
 async def get_current_user(authorization: str = Header(...)):
     """Get current user from authorization header"""
     try:
+
         token = authorization.replace("Bearer ", "")
         payload = verify_token(token)
         if not payload:
+
             raise HTTPException(
                 status_code=401, 
                 detail="Invalid or expired token"
             )
+
         return payload
     except Exception as e:
         raise HTTPException(
             status_code=401,
             detail=f"Authorization failed: {str(e)}"
         )
+

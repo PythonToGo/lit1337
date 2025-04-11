@@ -6,7 +6,7 @@ from sqlalchemy import select
 from models import User, PushLog, Problem, Solution
 from database import get_db
 from auth import get_current_user
-from github_push import push_code_to_github
+from github_push import push_code_to_github, repo_exists, create_repo
 from github_oauth import get_user_info
 from utils.leetcode import get_problem_difficulty
 import base64
@@ -35,17 +35,8 @@ async def save_repository(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-<<<<<<< Updated upstream
-        if not data.get("filename") or not data.get("code"):
-            raise HTTPException(status_code=400, detail="Missing required fields")
-        
-        filename = data.get("filename")
-        code = data.get("code")
-        language = filename.split(".")[-1]
-=======
         # Extract repository info
         repository = data.repository
->>>>>>> Stashed changes
 
         # Log operation
         print(f"[push.py] Saving repository '{repository}' for user")
@@ -74,18 +65,9 @@ async def save_repository(
         
         # Verify access token
         access_token = user_obj.access_token
-<<<<<<< Updated upstream
-        user_info = await get_user_info(access_token)
-        github_username = user_info.get("login")
-        repo = f"{github_username}/leetcode_repo"
-
-        # push
-        status, result = await push_code_to_github(access_token, repo, filename, code)
-=======
         if not access_token:
             print(f"[push.py] No GitHub access token found for user {github_id}")
             raise HTTPException(status_code=401, detail="GitHub access token not found")
->>>>>>> Stashed changes
         
         # Verify repository exists
         try:
@@ -137,12 +119,9 @@ async def save_repository(
         }
         
     except HTTPException as he:
-        # Re-raise HTTP exceptions with their status codes
         print(f"HTTP exception: {he.status_code} - {he.detail}")
         raise
-        
     except Exception as e:
-        # Log unhandled exceptions
         print(f"Unhandled error in save_repository: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
@@ -180,27 +159,6 @@ async def push_code(
         if not selected_repo:
             raise HTTPException(status_code=400, detail="No repository selected")
             
-        # Check if repository exists
-        repo_exists_result = await repo_exists(access_token, selected_repo)
-        if not repo_exists_result:
-            # Try to create repository if it doesn't exist
-            repo_owner, repo_name = selected_repo.split('/')
-            user_info = await get_user_info(access_token)
-            github_username = user_info.get("login")
-            
-            if repo_owner == github_username:
-                created = await create_repo(access_token, repo_name)
-                if not created:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Repository '{selected_repo}' does not exist and could not be created"
-                    )
-            else:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Repository '{selected_repo}' not found or not accessible"
-                )
-                
         # Push code to GitHub
         status, result = await push_code_to_github(
             access_token=access_token,

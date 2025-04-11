@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models import User, PushLog, Problem, Solution
@@ -10,79 +12,225 @@ from utils.leetcode import get_problem_difficulty
 import base64
 import httpx
 from datetime import datetime
+import traceback
+import logging
 
-push_router = APIRouter()
+# Add prefix to the router
+push_router = APIRouter(prefix="", tags=["push"])
 
-@push_router.post("/push-code")
-async def push_code(data: dict, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+# Define a model for the request body
+class PushCodeRequest(BaseModel):
+    filename: str = Field(..., description="Filename for the code file")
+    code: str = Field(..., description="Code to be pushed")
+    selected_repo: str = Field(..., description="Repository to push to (username/repo format)")
+
+# Define a model for the save repository request
+class SaveRepositoryRequest(BaseModel):
+    repository: str = Field(..., description="Repository to save (username/repo format)")
+
+@push_router.post("/save-repository")
+async def save_repository(
+    data: SaveRepositoryRequest = Body(...),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     try:
+<<<<<<< Updated upstream
         if not data.get("filename") or not data.get("code"):
             raise HTTPException(status_code=400, detail="Missing required fields")
         
         filename = data.get("filename")
         code = data.get("code")
         language = filename.split(".")[-1]
+=======
+        # Extract repository info
+        repository = data.repository
+>>>>>>> Stashed changes
 
+        # Log operation
+        print(f"[push.py] Saving repository '{repository}' for user")
+        
+        # Validate repository format
+        repo_parts = repository.split("/")
+        if len(repo_parts) != 2 or not repo_parts[0] or not repo_parts[1]:
+            print(f"[push.py] Invalid repository format: {repository}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid repository format: {repository}. Should be 'username/repo'"
+            )
+        
+        # Get GitHub ID from token
         github_id = user.get("github_id")
+        if not github_id:
+            print(f"[push.py] GitHub ID not found in token: {user}")
+            raise HTTPException(status_code=401, detail="GitHub ID not found in token")
+        
+        # Find user in database
         result = await db.execute(select(User).where(User.github_id == github_id))
         user_obj = result.scalar_one_or_none()
         if not user_obj:
-            raise HTTPException(status_code=404, detail="User not found")
-
+            print(f"[push.py] User not found in database for GitHub ID: {github_id}")
+            raise HTTPException(status_code=404, detail="User not found in database")
+        
+        # Verify access token
         access_token = user_obj.access_token
+<<<<<<< Updated upstream
         user_info = await get_user_info(access_token)
         github_username = user_info.get("login")
         repo = f"{github_username}/leetcode_repo"
 
         # push
         status, result = await push_code_to_github(access_token, repo, filename, code)
+=======
+        if not access_token:
+            print(f"[push.py] No GitHub access token found for user {github_id}")
+            raise HTTPException(status_code=401, detail="GitHub access token not found")
+>>>>>>> Stashed changes
         
-        # 201, 200 OK
-        if status not in [200, 201]:
-            raise HTTPException(status_code=status, detail=result.get("message", "Failed to push code"))
-
-        if result.get("message") == "No change":
-            return {"message": "No change"}
-
-        # Extract slug and calculate points
-        slug = filename.split("_", 1)[-1].rsplit(".", 1)[0].replace("_", "-").lower()
+        # Verify repository exists
+        try:
+            repo_check = await repo_exists(access_token, repository)
+            if not repo_check:
+                repo_owner, repo_name = repo_parts
+                print(f"[push.py] Repository not found: {repository}")
+                
+                # Get GitHub username
+                user_info = await get_user_info(access_token)
+                github_username = user_info.get("login")
+                
+                if repo_owner == github_username:
+                    # User is the owner, try to create the repo
+                    print(f"[push.py] User owns this repo. Attempting to create: {repo_name}")
+                    repo_created = await create_repo(access_token, repo_name)
+                    
+                    if repo_created:
+                        print(f"[push.py] Successfully created repository {repo_name}")
+                    else:
+                        print(f"[push.py] Failed to create repository: {repo_name}")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Repository '{repository}' does not exist and could not be created."
+                        )
+                else:
+                    # User is not the owner
+                    print(f"[push.py] User is not the owner of {repository}")
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Repository '{repository}' not found or not accessible."
+                    )
+        except HTTPException as e:
+            raise
+        except Exception as e:
+            print(f"[push.py] Error verifying repository: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Repository verification error: {str(e)}"
+            )
         
-        # Get difficulty info
-        difficulty_info = await get_problem_difficulty(slug)
-        difficulty = difficulty_info.get("difficulty") if difficulty_info else None
-        point_map = {"Easy": 3, "Medium": 6, "Hard": 12}
-        point = point_map.get(difficulty, 0)
-
-        # Insert into Problem table if not exists
-        existing_problem = await db.execute(select(Problem).where(Problem.slug == slug))
-        if not existing_problem.scalar_one_or_none():
-            db.add(Problem(slug=slug, difficulty=difficulty, point=point))
-            await db.commit()
-
-        # Insert into PushLog
-        db.add(PushLog(user_id=user_obj.id, filename=filename, language=language))
+        # Update user's selected repository
+        user_obj.selected_repo = repository
         await db.commit()
-
-        # Check if the solution was accepted
-        if result.get("message") != "No change":
-            # Insert into Solution table
-            db.add(Solution(user_id=user_obj.id, problem_slug=slug, language=language, code=code))
-            await db.commit()
-
+        
         return {
-            "message": "uploaded to github!",
-            "difficulty": difficulty,
-            "point": point,
-            "pushed_at": datetime.now().isoformat()
+            "message": "Repository saved successfully",
+            "repository": repository
         }
-
+        
+    except HTTPException as he:
+        # Re-raise HTTP exceptions with their status codes
+        print(f"HTTP exception: {he.status_code} - {he.detail}")
+        raise
+        
     except Exception as e:
-        print(f"Error in push_code: {str(e)}")
+        # Log unhandled exceptions
+        print(f"Unhandled error in save_repository: {str(e)}")
         await db.rollback()
-        # 201=ok
-        if "201" in str(e):
-            return {
-                "message": "uploaded to github!",
-                "pushed_at": datetime.now().isoformat()
-            }
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+@push_router.post("/push-code")
+async def push_code(
+    request: Request,
+    data: PushCodeRequest = Body(...),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        # Log the incoming request for debugging
+        print(f"[push.py] Received push request from user: {user}")
+        print(f"[push.py] Request data: {data}")
+        
+        # Get user from database
+        github_id = user.get("github_id")
+        if not github_id:
+            raise HTTPException(status_code=401, detail="GitHub ID not found in token")
+            
+        result = await db.execute(select(User).where(User.github_id == github_id))
+        user_obj = result.scalar_one_or_none()
+        
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found in database")
+            
+        # Get access token
+        access_token = user_obj.access_token
+        if not access_token:
+            raise HTTPException(status_code=401, detail="GitHub access token not found")
+            
+        # Use selected_repo from request or user's saved repo
+        selected_repo = data.selected_repo or user_obj.selected_repo
+        if not selected_repo:
+            raise HTTPException(status_code=400, detail="No repository selected")
+            
+        # Check if repository exists
+        repo_exists_result = await repo_exists(access_token, selected_repo)
+        if not repo_exists_result:
+            # Try to create repository if it doesn't exist
+            repo_owner, repo_name = selected_repo.split('/')
+            user_info = await get_user_info(access_token)
+            github_username = user_info.get("login")
+            
+            if repo_owner == github_username:
+                created = await create_repo(access_token, repo_name)
+                if not created:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Repository '{selected_repo}' does not exist and could not be created"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Repository '{selected_repo}' not found or not accessible"
+                )
+                
+        # Push code to GitHub
+        status, result = await push_code_to_github(
+            access_token=access_token,
+            repo=selected_repo,
+            filename=data.filename,
+            content=data.code
+        )
+        
+        if status in [200, 201]:
+            # Update last push time
+            user_obj.last_push = datetime.utcnow()
+            await db.commit()
+            
+            # Create push log
+            push_log = PushLog(
+                user_id=user_obj.id,
+                filename=data.filename,
+                language=data.filename.split('.')[-1]
+            )
+            db.add(push_log)
+            await db.commit()
+            
+            return {"message": "Code pushed successfully", "repository": selected_repo}
+        else:
+            raise HTTPException(status_code=status, detail=result.get("message", "Failed to push code to GitHub"))
+            
+    except HTTPException as he:
+        print(f"[push.py] HTTP Exception: {he.status_code} - {he.detail}")
+        raise he
+    except Exception as e:
+        print(f"[push.py] Unexpected error: {str(e)}")
+        logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))

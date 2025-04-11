@@ -13,7 +13,9 @@ ALLOWED_ORIGINS = [
     "https://leetcode.com",
     "https://leetcode.cn",
     "http://localhost:3000",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "chrome-extension://*",  # Allow all Chrome extensions
+    "https://lit1337-dev.up.railway.app"
 ]
 
 if os.getenv("ADDITIONAL_ORIGINS"):
@@ -21,18 +23,11 @@ if os.getenv("ADDITIONAL_ORIGINS"):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://leetcode.com"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=[
-        "Content-Type", 
-        "Authorization", 
-        "Accept", 
-        "Origin", 
-        "X-Requested-With"
-    ],
-    expose_headers=["*"],
-    max_age=3600,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers including Authorization
+    expose_headers=["*"]
 )
 
 app.include_router(user.user_router)

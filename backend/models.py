@@ -22,6 +22,7 @@ class User(Base):
     github_id = Column(String, unique=True, index=True)
     username = Column(String, unique=True, index=True)
     access_token = Column(String)
+    selected_repo = Column(String, nullable=True)  # Store the selected repository
     last_push = Column(DateTime(timezone=True))
     last_login = Column(DateTime(timezone=True))
     solutions = relationship("Solution", back_populates="user")

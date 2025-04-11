@@ -1,12 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from models import User, PushLog, Problem, Solution
 from database import get_db
 from auth import get_current_user
 from datetime import datetime, timedelta
+from pydantic import BaseModel
 
 user_router = APIRouter()
+
+class RepositoryUpdate(BaseModel):
+    repository: str
+
+@user_router.post("/save-repository")
+async def save_repository(
+    repo_data: RepositoryUpdate,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    github_id = user.get("github_id")
+    
+    # Update the user's selected repository
+    await db.execute(
+        update(User)
+        .where(User.github_id == github_id)
+        .values(selected_repo=repo_data.repository)
+    )
+    await db.commit()
+    
+    return {"message": "Repository updated successfully", "repository": repo_data.repository}
 
 @user_router.get("/me")
 async def read_me(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -21,7 +43,8 @@ async def read_me(user=Depends(get_current_user), db: AsyncSession = Depends(get
     return {
         "username": user_obj.username,
         "last_login": user_obj.last_login.isoformat() if user_obj.last_login else None,
-        "last_push": user_obj.last_push.isoformat() if user_obj.last_push else None
+        "last_push": user_obj.last_push.isoformat() if user_obj.last_push else None,
+        "selected_repo": user_obj.selected_repo
     }
 
 

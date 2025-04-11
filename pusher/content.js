@@ -310,16 +310,56 @@ async function pushCodeToGitHub(pushBtn) {
   pushBtn.disabled = true;
 
   try {
+<<<<<<< Updated upstream
     const res = await fetch(`${API_BASE_URL}/push-code`, {
+=======
+    console.log(`Pushing to repository: ${selectedRepo}`);
+    
+    // Check repository format
+    if (!selectedRepo.includes('/')) {
+      pushBtn.innerText = "❌ Invalid Repo";
+      console.error("Invalid repository format. Should be 'username/repo'");
+      alert("Repository format is invalid. It should be in the format 'username/repo'");
+      return;
+    }
+    
+    // Create request body with proper format
+    const requestBody = { 
+      filename, 
+      code,
+      selected_repo: selectedRepo
+    };
+    
+    // Validate required fields
+    if (!filename || !code || !selectedRepo) {
+      pushBtn.innerText = "❌ Invalid Data";
+      console.error("Missing required fields for push", { filename, codeLength: code?.length, selectedRepo });
+      return;
+    }
+    
+    // Log request details
+    console.log("Request to:", `${API_BASE_URL}/push-code`);
+    console.log("Request body:", { ...requestBody, code: code.length > 50 ? `${code.substring(0, 50)}...` : code });
+    console.log("JWT Length:", jwt ? jwt.length : 'none');
+    console.log("JWT Token:", jwt ? jwt : 'none');
+    
+    // Setup request with proper headers
+    const options = {
+>>>>>>> Stashed changes
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${jwt}`,
+<<<<<<< Updated upstream
         "Accept": "application/json",
         "Origin": "https://leetcode.com"
+=======
+        "Accept": "application/json"
+>>>>>>> Stashed changes
       },
       credentials: 'include',
       mode: 'cors',
+<<<<<<< Updated upstream
       body: JSON.stringify({ 
         filename, 
         code,
@@ -347,6 +387,144 @@ async function pushCodeToGitHub(pushBtn) {
         });
         pushBtn.innerText = "✅ Push";
       }
+=======
+      cache: 'no-cache',
+      body: JSON.stringify(requestBody)
+    };
+    
+    console.log("Fetch options:", { ...options, body: "..." });
+    
+    // Make the API request
+    let res;
+    try {
+      res = await fetch(`${API_BASE_URL}/push-code`, options);
+      console.log(`API Response Status: ${res.status} ${res.statusText}`);
+      console.log("Response Headers:", Object.fromEntries(res.headers.entries()));
+    } catch (fetchError) {
+      console.error("Fetch network error:", fetchError);
+      pushBtn.innerText = "❌ Network";
+      throw new Error(`Network error: ${fetchError.message}`);
+    }
+
+    // Handle non-ok responses
+    if (!res.ok) {
+      let errorInfo = "";
+      try {
+        // Try to parse JSON response
+        const errorData = await res.json();
+        console.error("Server JSON error:", errorData);
+        errorInfo = JSON.stringify(errorData);
+        
+        // Special handling for 404 Not Found repository errors
+        if ((res.status === 404 || 
+            (res.status === 500 && errorData.detail && (
+              errorData.detail.includes("404") || 
+              errorData.detail.includes("not found") || 
+              errorData.detail.includes("not accessible")
+            ))
+            )) {
+          console.error("Repository not found error:", errorData);
+          pushBtn.innerText = "❌ Repo Not Found";
+          
+          // Check if the user has selected a repository
+          chrome.storage.local.get(['selected_repo', 'username'], ({ selected_repo, username }) => {
+            // In case the selected repo is actually invalid, verify it
+            if (selected_repo) {
+              // If the user is the owner, suggest creating the repo
+              const repoOwner = selected_repo.split('/')[0];
+              
+              if (username && repoOwner === username) {
+                // User may need to create the repository
+                const confirmCreate = confirm(`Repository '${selected_repo}' does not exist. Would you like to create it first?`);
+                if (confirmCreate) {
+                  // Open GitHub page to create a new repository
+                  try {
+                    // Check if we're in a content script (which doesn't have direct access to chrome.tabs.create)
+                    if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+                      // Send a message to background script to open the tab
+                      chrome.runtime.sendMessage({ 
+                        action: "open_url", 
+                        url: 'https://github.com/new' 
+                      }, (response) => {
+                        if (chrome.runtime.lastError) {
+                          console.error("Error sending message:", chrome.runtime.lastError);
+                          // Fallback: Try to open in current tab
+                          window.open('https://github.com/new', '_blank');
+                        }
+                      });
+                    } else {
+                      // Direct approach if we're in popup script or have tabs permission
+                      window.open('https://github.com/new', '_blank');
+                    }
+                  } catch (error) {
+                    console.error("Error opening GitHub new repo page:", error);
+                    // Fallback option
+                    alert("Please create a new repository at github.com/new");
+                  }
+                }
+              } else {
+                // Different owner, show permissions error
+                alert(`Repository '${selected_repo}' not found or not accessible. Please check if it exists and you have permissions.`);
+              }
+            } else {
+              // No repository selected
+              alert("No repository selected. Please select a repository in the extension popup.");
+            }
+          });
+          return;
+        }
+        
+        // Handle authentication errors
+        if (res.status === 401 || 
+            (errorData.detail && (
+              errorData.detail.includes("authentication") || 
+              errorData.detail.includes("token") ||
+              errorData.detail.includes("Authorization")
+            ))
+           ) {
+          console.error("Authentication error:", errorData);
+          pushBtn.innerText = "❌ Auth Error";
+          
+          // Prompt for re-login
+          const confirmRelogin = confirm("Your GitHub authentication has expired. Would you like to log in again?");
+          if (confirmRelogin) {
+            // Clear existing tokens and reload the extension popup
+            chrome.storage.local.remove(["jwt", "github_token"], () => {
+              chrome.runtime.sendMessage({ action: "login" });
+            });
+          }
+          return;
+        }
+      } catch (jsonError) {
+        // If not JSON, try to get text
+        try {
+          const errorText = await res.text();
+          console.error("Server text error:", errorText);
+          errorInfo = errorText;
+        } catch (textError) {
+          errorInfo = "Could not read error response";
+          console.error("Error reading response:", textError);
+        }
+      }
+      throw new Error(`HTTP error! status: ${res.status}, details: ${errorInfo}`);
+    }
+
+    // Parse successful response
+    let data;
+    try {
+      data = await res.json();
+      console.log("API Success Response:", data);
+    } catch (parseError) {
+      console.error("Error parsing success response:", parseError);
+      throw new Error("Invalid JSON in success response");
+    }
+
+    // Update UI based on response
+    if (data.message === "Already pushed!") {
+      pushBtn.innerText = "⚠️ Already";
+    } else if (data.message === "No change") {
+      pushBtn.innerText = "🟡 No change";
+>>>>>>> Stashed changes
     } else {
       pushBtn.innerText = "❌ Failed";
     }

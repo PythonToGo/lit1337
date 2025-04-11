@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 import os
+import logging
 
 load_dotenv()
 

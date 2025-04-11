@@ -310,9 +310,6 @@ async function pushCodeToGitHub(pushBtn) {
   pushBtn.disabled = true;
 
   try {
-<<<<<<< Updated upstream
-    const res = await fetch(`${API_BASE_URL}/push-code`, {
-=======
     console.log(`Pushing to repository: ${selectedRepo}`);
     
     // Check repository format
@@ -345,49 +342,14 @@ async function pushCodeToGitHub(pushBtn) {
     
     // Setup request with proper headers
     const options = {
->>>>>>> Stashed changes
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${jwt}`,
-<<<<<<< Updated upstream
-        "Accept": "application/json",
-        "Origin": "https://leetcode.com"
-=======
         "Accept": "application/json"
->>>>>>> Stashed changes
       },
       credentials: 'include',
       mode: 'cors',
-<<<<<<< Updated upstream
-      body: JSON.stringify({ 
-        filename, 
-        code,
-        origin: "https://leetcode.com"
-      })
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      console.error("Server error:", errorData);
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (res.ok) {
-      if (data.message === "Already pushed!") {
-        pushBtn.innerText = "⚠️ Already";
-      } else if (data.message === "No change") {
-        pushBtn.innerText = "🟡 No change";
-      } else {
-        const pushedAt = data.pushed_at || new Date().toISOString();
-        chrome.storage.local.set({ last_push: pushedAt }, () => {
-          console.log(`[Push] Last push: ${pushedAt}`);
-        });
-        pushBtn.innerText = "✅ Push";
-      }
-=======
       cache: 'no-cache',
       body: JSON.stringify(requestBody)
     };
@@ -474,59 +436,38 @@ async function pushCodeToGitHub(pushBtn) {
           return;
         }
         
-        // Handle authentication errors
-        if (res.status === 401 || 
-            (errorData.detail && (
-              errorData.detail.includes("authentication") || 
-              errorData.detail.includes("token") ||
-              errorData.detail.includes("Authorization")
-            ))
-           ) {
-          console.error("Authentication error:", errorData);
-          pushBtn.innerText = "❌ Auth Error";
-          
-          // Prompt for re-login
-          const confirmRelogin = confirm("Your GitHub authentication has expired. Would you like to log in again?");
-          if (confirmRelogin) {
-            // Clear existing tokens and reload the extension popup
-            chrome.storage.local.remove(["jwt", "github_token"], () => {
-              chrome.runtime.sendMessage({ action: "login" });
-            });
-          }
-          return;
-        }
+        // Handle other error cases
+        pushBtn.innerText = "❌ Error";
+        alert(`Error pushing code: ${errorData.detail || errorData.message || 'Unknown error'}`);
       } catch (jsonError) {
-        // If not JSON, try to get text
-        try {
-          const errorText = await res.text();
-          console.error("Server text error:", errorText);
-          errorInfo = errorText;
-        } catch (textError) {
-          errorInfo = "Could not read error response";
-          console.error("Error reading response:", textError);
-        }
+        // Handle non-JSON error responses
+        console.error("Non-JSON error response:", jsonError);
+        errorInfo = await res.text().catch(() => "Could not read error response");
+        pushBtn.innerText = "❌ Error";
+        alert(`Error pushing code: ${errorInfo}`);
       }
-      throw new Error(`HTTP error! status: ${res.status}, details: ${errorInfo}`);
+      throw new Error(`HTTP error! status: ${res.status}, info: ${errorInfo}`);
     }
 
-    // Parse successful response
-    let data;
+    // Handle successful response
     try {
-      data = await res.json();
-      console.log("API Success Response:", data);
+      const data = await res.json();
+      console.log("Push response data:", data);
+      
+      if (data.message === "Already pushed!") {
+        pushBtn.innerText = "⚠️ Already";
+      } else if (data.message === "No change") {
+        pushBtn.innerText = "🟡 No change";
+      } else {
+        const pushedAt = data.pushed_at || new Date().toISOString();
+        chrome.storage.local.set({ last_push: pushedAt }, () => {
+          console.log(`[Push] Last push: ${pushedAt}`);
+        });
+        pushBtn.innerText = "✅ Push";
+      }
     } catch (parseError) {
       console.error("Error parsing success response:", parseError);
-      throw new Error("Invalid JSON in success response");
-    }
-
-    // Update UI based on response
-    if (data.message === "Already pushed!") {
-      pushBtn.innerText = "⚠️ Already";
-    } else if (data.message === "No change") {
-      pushBtn.innerText = "🟡 No change";
->>>>>>> Stashed changes
-    } else {
-      pushBtn.innerText = "❌ Failed";
+      pushBtn.innerText = "⚠️ Partial";
     }
   } catch (err) {
     console.error("Push error:", err);

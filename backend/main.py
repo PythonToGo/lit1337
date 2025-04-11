@@ -1,7 +1,6 @@
 from init_db import init_db
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
-from routers import user, stats, auth, push, solution
 from fastapi import FastAPI
 import os
 
@@ -29,6 +28,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers including Authorization
     expose_headers=["*"]
 )
+
+# Import routers after FastAPI app is created
+from routers import user, stats, auth, push, solution
 
 app.include_router(user.user_router)
 app.include_router(stats.stats_router)

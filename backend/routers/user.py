@@ -7,7 +7,7 @@ from auth import get_current_user
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 
-user_router = APIRouter()
+user_router = APIRouter(prefix="", tags=["user"])
 
 class RepositoryUpdate(BaseModel):
     repository: str

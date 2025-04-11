@@ -20,20 +20,6 @@ def create_access_token(data: dict):
     return jwt_token
 
 def verify_token(token: str):
-<<<<<<< Updated upstream
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except JWTError:
-        return None
-
-async def get_current_user(authorization: str = Header(...)):
-    token = authorization.replace("Bearer ", "")
-    user = verify_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return user
-=======
     """Verify and decode a JWT token"""
     print(f"[auth.py] Verifying token: {token[:20]}...")
     try:
@@ -114,10 +100,8 @@ async def get_current_user(authorization: str = Header(...)):
         raise
     except Exception as e:
         print(f"[auth.py] Authentication error: {str(e)}")
-        import traceback
         print(traceback.format_exc())
         raise HTTPException(
             status_code=401,
             detail=f"Authorization failed: {str(e)}"
         )
->>>>>>> Stashed changes

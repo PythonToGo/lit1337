@@ -73,14 +73,17 @@ function getCsrfToken() {
 function getJwtToken() {
   return new Promise((resolve, reject) => {
     if (cachedJwt) {
+      console.log("Using cached JWT token:", cachedJwt ? `${cachedJwt.substring(0, 10)}...` : 'none');
       return resolve(cachedJwt);
     }
 
     chrome.storage.local.get("jwt", ({ jwt }) => {
       if (jwt) {
+        console.log("JWT token from storage:", jwt ? `${jwt.substring(0, 10)}...` : 'none');
         cachedJwt = jwt;
         resolve(jwt);
       } else {
+        console.error("JWT token not found in storage");
         reject("JWT not found");
       }
     });
@@ -301,8 +304,34 @@ async function pushCodeToGitHub(pushBtn) {
   let jwt;
   try {
     jwt = await getJwtToken();
+    if (!jwt || jwt.trim() === '') {
+      pushBtn.innerText = "❌ Invalid JWT";
+      console.error("JWT token is empty or invalid");
+      return;
+    }
   } catch (e) {
     pushBtn.innerText = "❌ No Login";
+    console.error("JWT token error:", e);
+    return;
+  }
+
+  // Get selected repository from storage
+  const selectedRepo = await new Promise(resolve => {
+    chrome.storage.local.get(['selected_repo'], (result) => {
+      resolve(result.selected_repo || "");
+    });
+  });
+  
+  if (!selectedRepo) {
+    pushBtn.innerText = "❌ No Repo";
+    console.error("No repository selected. Please select a repository in the extension popup.");
+    
+    // Show a more helpful message to the user with instructions
+    setTimeout(() => {
+      alert("Repository not selected. Please click on the LeetCode Pusher extension icon, then select a repository from the dropdown menu.");
+      pushBtn.innerText = "🔄 Push";
+    }, 500);
+    
     return;
   }
 
@@ -312,162 +341,82 @@ async function pushCodeToGitHub(pushBtn) {
   try {
     console.log(`Pushing to repository: ${selectedRepo}`);
     
-    // Check repository format
-    if (!selectedRepo.includes('/')) {
-      pushBtn.innerText = "❌ Invalid Repo";
-      console.error("Invalid repository format. Should be 'username/repo'");
-      alert("Repository format is invalid. It should be in the format 'username/repo'");
-      return;
-    }
-    
-    // Create request body with proper format
+
+    // 백엔드가 기대하는 형식의 요청 본문 구성
     const requestBody = { 
       filename, 
       code,
-      selected_repo: selectedRepo
+      selected_repo: selectedRepo  // 백엔드가 필요로 하는 필수 필드
     };
     
-    // Validate required fields
+    // 필수 필드 체크
+
     if (!filename || !code || !selectedRepo) {
       pushBtn.innerText = "❌ Invalid Data";
       console.error("Missing required fields for push", { filename, codeLength: code?.length, selectedRepo });
       return;
     }
     
-    // Log request details
+
+    // 요청 로그
     console.log("Request to:", `${API_BASE_URL}/push-code`);
     console.log("Request body:", { ...requestBody, code: code.length > 50 ? `${code.substring(0, 50)}...` : code });
     console.log("JWT Length:", jwt ? jwt.length : 'none');
-    console.log("JWT Token:", jwt ? jwt : 'none');
+    console.log("JWT Token (first 20 chars):", jwt ? jwt.substring(0, 20) + '...' : 'none');
     
-    // Setup request with proper headers
-    const options = {
-      method: "POST",
+    // 올바른 인증 헤더 구성
+    const authHeader = `Bearer ${jwt}`;
+    
+    // 테스트로 다른 형식의 헤더도 시도
+    const res = await fetch(`${API_BASE_URL}/push-code`, {
+      method: "POST",  // 백엔드는 POST 메소드 기대
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${jwt}`,
+        "Authorization": authHeader,
+
         "Accept": "application/json"
       },
-      credentials: 'include',
       mode: 'cors',
-      cache: 'no-cache',
-      body: JSON.stringify(requestBody)
-    };
-    
-    console.log("Fetch options:", { ...options, body: "..." });
-    
-    // Make the API request
-    let res;
-    try {
-      res = await fetch(`${API_BASE_URL}/push-code`, options);
-      console.log(`API Response Status: ${res.status} ${res.statusText}`);
-      console.log("Response Headers:", Object.fromEntries(res.headers.entries()));
-    } catch (fetchError) {
-      console.error("Fetch network error:", fetchError);
-      pushBtn.innerText = "❌ Network";
-      throw new Error(`Network error: ${fetchError.message}`);
-    }
 
-    // Handle non-ok responses
+      cache: 'no-cache', // 캐시 문제 방지
+      body: JSON.stringify(requestBody)
+    });
+
+    // 응답 상태 코드와 헤더 로깅 추가
+    console.log(`API Response Status: ${res.status} ${res.statusText}`);
+    console.log("Response Headers:", Object.fromEntries(res.headers.entries()));
+
     if (!res.ok) {
+      // 에러 응답에 대한 개선된 처리
       let errorInfo = "";
       try {
-        // Try to parse JSON response
+        // JSON 형식 응답 처리 시도
         const errorData = await res.json();
         console.error("Server JSON error:", errorData);
         errorInfo = JSON.stringify(errorData);
-        
-        // Special handling for 404 Not Found repository errors
-        if ((res.status === 404 || 
-            (res.status === 500 && errorData.detail && (
-              errorData.detail.includes("404") || 
-              errorData.detail.includes("not found") || 
-              errorData.detail.includes("not accessible")
-            ))
-            )) {
-          console.error("Repository not found error:", errorData);
-          pushBtn.innerText = "❌ Repo Not Found";
-          
-          // Check if the user has selected a repository
-          chrome.storage.local.get(['selected_repo', 'username'], ({ selected_repo, username }) => {
-            // In case the selected repo is actually invalid, verify it
-            if (selected_repo) {
-              // If the user is the owner, suggest creating the repo
-              const repoOwner = selected_repo.split('/')[0];
-              
-              if (username && repoOwner === username) {
-                // User may need to create the repository
-                const confirmCreate = confirm(`Repository '${selected_repo}' does not exist. Would you like to create it first?`);
-                if (confirmCreate) {
-                  // Open GitHub page to create a new repository
-                  try {
-                    // Check if we're in a content script (which doesn't have direct access to chrome.tabs.create)
-                    if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
-                      // Send a message to background script to open the tab
-                      chrome.runtime.sendMessage({ 
-                        action: "open_url", 
-                        url: 'https://github.com/new' 
-                      }, (response) => {
-                        if (chrome.runtime.lastError) {
-                          console.error("Error sending message:", chrome.runtime.lastError);
-                          // Fallback: Try to open in current tab
-                          window.open('https://github.com/new', '_blank');
-                        }
-                      });
-                    } else {
-                      // Direct approach if we're in popup script or have tabs permission
-                      window.open('https://github.com/new', '_blank');
-                    }
-                  } catch (error) {
-                    console.error("Error opening GitHub new repo page:", error);
-                    // Fallback option
-                    alert("Please create a new repository at github.com/new");
-                  }
-                }
-              } else {
-                // Different owner, show permissions error
-                alert(`Repository '${selected_repo}' not found or not accessible. Please check if it exists and you have permissions.`);
-              }
-            } else {
-              // No repository selected
-              alert("No repository selected. Please select a repository in the extension popup.");
-            }
-          });
-          return;
-        }
-        
-        // Handle other error cases
-        pushBtn.innerText = "❌ Error";
-        alert(`Error pushing code: ${errorData.detail || errorData.message || 'Unknown error'}`);
       } catch (jsonError) {
-        // Handle non-JSON error responses
-        console.error("Non-JSON error response:", jsonError);
-        errorInfo = await res.text().catch(() => "Could not read error response");
-        pushBtn.innerText = "❌ Error";
-        alert(`Error pushing code: ${errorInfo}`);
+        // 텍스트 형식 응답 처리 (일반 오류 메시지)
+        const errorText = await res.text();
+        console.error("Server text error:", errorText);
+        errorInfo = errorText;
       }
-      throw new Error(`HTTP error! status: ${res.status}, info: ${errorInfo}`);
+      throw new Error(`HTTP error! status: ${res.status}, details: ${errorInfo}`);
     }
 
-    // Handle successful response
-    try {
-      const data = await res.json();
-      console.log("Push response data:", data);
-      
-      if (data.message === "Already pushed!") {
-        pushBtn.innerText = "⚠️ Already";
-      } else if (data.message === "No change") {
-        pushBtn.innerText = "🟡 No change";
-      } else {
-        const pushedAt = data.pushed_at || new Date().toISOString();
-        chrome.storage.local.set({ last_push: pushedAt }, () => {
-          console.log(`[Push] Last push: ${pushedAt}`);
-        });
-        pushBtn.innerText = "✅ Push";
-      }
-    } catch (parseError) {
-      console.error("Error parsing success response:", parseError);
-      pushBtn.innerText = "⚠️ Partial";
+    const data = await res.json();
+    console.log("API Success Response:", data);
+
+    if (data.message === "Already pushed!") {
+      pushBtn.innerText = "⚠️ Already";
+    } else if (data.message === "No change") {
+      pushBtn.innerText = "🟡 No change";
+    } else {
+      const pushedAt = data.pushed_at || new Date().toISOString();
+      chrome.storage.local.set({ last_push: pushedAt }, () => {
+        console.log(`[Push] Last push: ${pushedAt}`);
+      });
+      pushBtn.innerText = "✅ Push";
+
     }
   } catch (err) {
     console.error("Push error:", err);
@@ -480,6 +429,17 @@ async function pushCodeToGitHub(pushBtn) {
   await getStatsFromAPI();
 }
 
+// Add a function to check and log the selected repository
+function checkSelectedRepository() {
+  chrome.storage.local.get(['selected_repo'], (result) => {
+    const selectedRepo = result.selected_repo;
+    if (selectedRepo) {
+      console.log(`[LeetCode Pusher] Using repository: ${selectedRepo}`);
+    } else {
+      console.warn("[LeetCode Pusher] No repository selected. Push function will not work.");
+    }
+  });
+}
 
 function waitForEditorAndInsertButton() {
   const editor = document.querySelector('.monaco-editor');
@@ -509,6 +469,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 setTimeout(() => {
   waitForEditorAndInsertButton();
   monitorSubmitButton();
+  checkSelectedRepository(); // Check repository on page load
 }, 1000);
 
 document.addEventListener("keydown", function (e) {

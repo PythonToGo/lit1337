@@ -35,8 +35,15 @@ async def save_repository(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        # Extract repository info
-        repository = data.repository
+
+        if not data.get("filename") or not data.get("code") or not data.get("selected_repo"):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        filename = data.get("filename")
+        code = data.get("code")
+        language = filename.split(".")[-1]
+        selected_repo = data.get("selected_repo")
+
 
         # Log operation
         print(f"[push.py] Saving repository '{repository}' for user")
@@ -65,9 +72,20 @@ async def save_repository(
         
         # Verify access token
         access_token = user_obj.access_token
-        if not access_token:
-            print(f"[push.py] No GitHub access token found for user {github_id}")
-            raise HTTPException(status_code=401, detail="GitHub access token not found")
+
+        user_info = await get_user_info(access_token)
+        github_username = user_info.get("login")
+
+        # Check if repository exists
+        if not await repo_exists(access_token, selected_repo):
+            # If repository doesn't exist, create it
+            repo_name = selected_repo.split("/")[1]  # Get repo name from full path
+            if not await create_repo(access_token, repo_name):
+                raise HTTPException(status_code=500, detail="Failed to create repository")
+
+        # push to selected repository
+        status, result = await push_code_to_github(access_token, selected_repo, filename, code)
+
         
         # Verify repository exists
         try:

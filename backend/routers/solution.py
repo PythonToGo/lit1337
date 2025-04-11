@@ -5,6 +5,7 @@ from models import User, Solution
 from database import get_db
 from auth import get_current_user
 from utils.leetcode import get_problem_difficulty
+import logging
 
 solution_router = APIRouter()
 
